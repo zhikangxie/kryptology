@@ -120,6 +120,9 @@ func (p *Prover) ProveCommit(x curves.Scalar) (*Proof, Commitment, error) {
 	if _, err = hash.Write(proof.S.Bytes()); err != nil {
 		return nil, nil, err
 	}
+	if _, err = hash.Write(proof.Statement.ToAffineCompressed()); err != nil {
+		return nil, nil, err
+	}
 	return proof, hash.Sum(nil), nil
 }
 
@@ -131,6 +134,9 @@ func DecommitVerify(proof *Proof, commitment Commitment, curve *curves.Curve, ba
 		return err
 	}
 	if _, err := hash.Write(proof.S.Bytes()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.Statement.ToAffineCompressed()); err != nil {
 		return err
 	}
 	if subtle.ConstantTimeCompare(hash.Sum(nil), commitment) != 1 {
