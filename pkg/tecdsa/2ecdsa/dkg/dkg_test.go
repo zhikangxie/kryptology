@@ -34,9 +34,9 @@ func TestDkg(t *testing.T) {
 			aliceView := alice.Output()
 			bobView := bob.Output()
 
-			require.Equal(tt, aliceView.pk, bobView.pkPeer)
-			require.Equal(tt, aliceView.pkPeer, bobView.pk)
-			require.Equal(tt, aliceView.pkJoint, bobView.pkJoint)
+			require.Equal(tt, aliceView.Pk, bobView.PkPeer)
+			require.Equal(tt, aliceView.PkPeer, bobView.Pk)
+			require.Equal(tt, aliceView.PkJoint, bobView.PkJoint)
 		})
 	}
 }

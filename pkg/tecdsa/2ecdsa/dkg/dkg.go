@@ -9,47 +9,47 @@ import (
 )
 
 type Alice struct {
-	prover *schnorr.Prover
-	proof *schnorr.Proof
-	curve *curves.Curve
-	sk curves.Scalar
-	pk curves.Point
-	pkPeer curves.Point
-	pkJoint curves.Point
-}
-
-type Bob struct {
-	prover *schnorr.Prover
-	curve *curves.Curve
-	sk curves.Scalar
-	pk curves.Point
-	pkPeer curves.Point
-	pkJoint curves.Point
-	aliceCommitment schnorr.Commitment
-}
-
-type Output struct {
+	prover  *schnorr.Prover
+	proof   *schnorr.Proof
+	curve   *curves.Curve
 	sk      curves.Scalar
 	pk      curves.Point
 	pkPeer  curves.Point
 	pkJoint curves.Point
 }
 
+type Bob struct {
+	prover          *schnorr.Prover
+	curve           *curves.Curve
+	sk              curves.Scalar
+	pk              curves.Point
+	pkPeer          curves.Point
+	pkJoint         curves.Point
+	aliceCommitment schnorr.Commitment
+}
+
+type Output struct {
+	Sk      curves.Scalar
+	Pk      curves.Point
+	PkPeer  curves.Point
+	PkJoint curves.Point
+}
+
 func NewAlice(curve *curves.Curve) *Alice {
 	sk := curve.Scalar.Random(rand.Reader)
 	return &Alice{
-		sk:         sk,
-		pk:         curve.ScalarBaseMult(sk),
-		curve:      curve,
+		sk:    sk,
+		pk:    curve.ScalarBaseMult(sk),
+		curve: curve,
 	}
 }
 
 func NewBob(curve *curves.Curve) *Bob {
 	sk := curve.Scalar.Random(rand.Reader)
 	return &Bob{
-		sk:         sk,
-		pk:         curve.ScalarBaseMult(sk),
-		curve:      curve,
+		sk:    sk,
+		pk:    curve.ScalarBaseMult(sk),
+		curve: curve,
 	}
 }
 
@@ -104,18 +104,18 @@ func (bob *Bob) Step4(proof *schnorr.Proof) error {
 
 func (alice *Alice) Output() *Output {
 	return &Output{
-		pk:      alice.pk,
-		sk:      alice.sk,
-		pkJoint: alice.pkJoint,
-		pkPeer:  alice.pkPeer,
+		Pk:      alice.pk,
+		Sk:      alice.sk,
+		PkJoint: alice.pkJoint,
+		PkPeer:  alice.pkPeer,
 	}
 }
 
 func (bob *Bob) Output() *Output {
 	return &Output{
-		pk:      bob.pk,
-		sk:      bob.sk,
-		pkJoint: bob.pkJoint,
-		pkPeer:  bob.pkPeer,
+		Pk:      bob.pk,
+		Sk:      bob.sk,
+		PkJoint: bob.pkJoint,
+		PkPeer:  bob.pkPeer,
 	}
 }
