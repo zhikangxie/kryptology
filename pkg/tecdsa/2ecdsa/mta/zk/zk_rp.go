@@ -31,12 +31,7 @@ func square_root_modolo(a *big.Int, p *big.Int, q *big.Int) *big.Int {
 		new(big.Int).Mod(q, big.NewInt(4)).Cmp(big.NewInt(3)) != 0 {
 		panic("p or q not equal to 3 mod 4")
 	}
-	/*let p_plus_one = &p + &BigInt::from(1);
-	  let q_plus_one = &q + &BigInt::from(1);
-	  let p_plus_one_div_four = p_plus_one.div_floor(&four);
-	  let q_plus_one_div_four = q_plus_one.div_floor(&four);
-	  assert!(p_plus_one.mod_floor(&four) == BigInt::zero());
-	  assert!(q_plus_one.mod_floor(&four) == BigInt::zero());*/
+
 	p_plus_one := new(big.Int).Add(p, crypto.One)
 	q_plus_one := new(big.Int).Add(q, crypto.One)
 	p_plus_one_div_four := new(big.Int).Div(p_plus_one, big.NewInt(4))
@@ -73,10 +68,6 @@ func square_root_modolo(a *big.Int, p *big.Int, q *big.Int) *big.Int {
 		panic("Square root mod q not exist.")
 	}
 
-	/*let inv_p_mod_q = BigInt::mod_inv(&p, &q);
-	  let inv_q_mod_p = BigInt::mod_inv(&q, &p);
-	  let z = &(&valid_square_root_modolo_p * &q * &inv_q_mod_p) + &(&valid_square_root_modolo_q * &p * &inv_p_mod_q);*/
-
 	inv_p_mod_q := new(big.Int).ModInverse(p, q)
 	inv_q_mod_p := new(big.Int).ModInverse(q, p)
 
@@ -100,7 +91,7 @@ func square_root_modolo_with_jacobi_test(a *big.Int, p *big.Int, q *big.Int) *bi
 	return z
 }
 
-func prove(st *ModStatement, ws *ModWitness) *ModProof {
+func rpprove(st *ModStatement, ws *ModWitness) *ModProof {
 	var err error
 	var w *big.Int
 	//m := 80 // soundness error
@@ -109,7 +100,6 @@ func prove(st *ModStatement, ws *ModWitness) *ModProof {
 	modProof := &ModProof{}
 
 	// Sample a random w in Zq and which satisfy Jacobi symbol (w | N) = -1
-
 	for {
 		w, err = crypto.Rand(st.N)
 		if big.Jacobi(w, st.N) == -1 {
@@ -172,20 +162,6 @@ func prove(st *ModStatement, ws *ModWitness) *ModProof {
 		modProof.b_vec[i] = b
 	}
 
-	/*let phi_N = (&witness.p - BigInt::from(1)) * (&witness.q  - BigInt::from(1));
-	  let mut z_vec = Vec::new();
-	  for i in (0..m) {
-	      let index = BigInt::mod_inv(
-	          &statement.N,
-	          &phi_N
-	      );
-	      let z_i = BigInt::mod_pow(
-	          &y_vec[i as usize],
-	          &index,
-	          &statement.N
-	      );
-	      z_vec.push(z_i);
-	  }*/
 	phi_N := new(big.Int).Mul(new(big.Int).Sub(ws.p, crypto.One), new(big.Int).Sub(ws.q, crypto.One))
 
 	for i := 0; i < m; i++ {
@@ -201,7 +177,7 @@ func prove(st *ModStatement, ws *ModWitness) *ModProof {
 	return modProof
 }
 
-func verify(st *ModStatement, proof *ModProof) bool {
+func rpverify(st *ModStatement, proof *ModProof) bool {
 	res := true
 	var y_vec [m]*big.Int
 
@@ -214,13 +190,7 @@ func verify(st *ModStatement, proof *ModProof) bool {
 	}
 
 	for i := 0; i < m; i++ {
-		/*let lhs = BigInt::mod_pow(
-		      &self.z_vec[i as usize],
-		      &statement.N,
-		      &statement.N
-		  );
-		  let rhs = y_vec[i as usize].clone();
-		  assert!(lhs == rhs);*/
+
 		lhs := new(big.Int).Exp(proof.z_vec[i], st.N, st.N)
 		rhs := y_vec[i]
 
@@ -228,25 +198,7 @@ func verify(st *ModStatement, proof *ModProof) bool {
 			//panic("lhs not equal rhs")
 			res = false
 		}
-		/*
-					let lhs = BigInt::mod_pow(
-			                &self.x_vec[i as usize],
-			                &BigInt::from(4),
-			                &statement.N
-			            );
 
-			            let mut rhs = y_vec[i as usize].clone();
-			            // For a = 0, b = 0.
-			            // if (self.a_vec[i as usize] == 1 && self.b_vec[i as usize] == 0) {}
-			            // For a = 1, b = 0.
-			            if (self.a_vec[i as usize] == 1 && self.b_vec[i as usize] == 0) {
-			                rhs = BigInt::mod_mul(
-			                    &y_vec[i as usize],
-			                    &BigInt::from(-1),
-			                    &statement.N
-			                );
-			            }
-		*/
 		lhs = new(big.Int).Exp(proof.x_vec[i], big.NewInt(4), st.N)
 		rhs = y_vec[i]
 
@@ -254,30 +206,10 @@ func verify(st *ModStatement, proof *ModProof) bool {
 			rhs = new(big.Int).Mod(new(big.Int).Mul(y_vec[i], big.NewInt(-1)), st.N)
 		}
 
-		/*// For a = 0, b = 1.
-		  if (self.a_vec[i as usize] == 0 && self.b_vec[i as usize] == 1) {
-		      rhs = BigInt::mod_mul(
-		          &y_vec[i as usize],
-		          &self.w,
-		          &statement.N
-		      );
-		  }*/
 		if proof.a_vec[i] == 0 && proof.b_vec[i] == 1 {
 			rhs = new(big.Int).Mod(new(big.Int).Mul(y_vec[i], proof.w), st.N)
 		}
-		/*// For a = 1, b = 1.
-		  if (self.a_vec[i as usize] == 1 && self.b_vec[i as usize] == 1) {
-		      let temp = BigInt::mod_mul(
-		          &y_vec[i as usize],
-		          &BigInt::from(-1),
-		          &statement.N
-		      );
-		      rhs = BigInt::mod_mul(
-		          &temp,
-		          &self.w,
-		          &statement.N
-		      );
-		  }*/
+
 		if proof.a_vec[i] == 1 && proof.b_vec[i] == 1 {
 			tmp := new(big.Int).Mod(new(big.Int).Mul(y_vec[i], big.NewInt(-1)), st.N)
 			rhs = new(big.Int).Mod(new(big.Int).Mul(tmp, proof.w), st.N)

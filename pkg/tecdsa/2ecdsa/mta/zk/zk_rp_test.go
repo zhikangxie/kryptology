@@ -29,8 +29,8 @@ func TestZKRP(t *testing.T) {
 	ws.p = p
 	ws.q = q
 
-	proof := prove(st, ws)
-	res := verify(st, proof)
+	proof := rpprove(st, ws)
+	res := rpverify(st, proof)
 
 	require.Equal(t, true, res)
 }
