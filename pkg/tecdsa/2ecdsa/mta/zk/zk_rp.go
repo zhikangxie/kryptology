@@ -26,6 +26,45 @@ type ModProof struct {
 	z_vec [m]*big.Int
 }
 
+func GenPQ(bits uint) (*big.Int, *big.Int) {
+	values := make(chan *big.Int, 2)
+	errors := make(chan error, 2)
+
+	var p, q *big.Int
+
+	for p == q {
+		for range []int{1, 2} {
+			go func() {
+				value, err := crypto.GenerateSafePrime(bits)
+				values <- value
+				errors <- err
+			}()
+		}
+
+		for _, err := range []error{<-errors, <-errors} {
+			if err != nil {
+				panic("p or q gen fail")
+			}
+		}
+
+		p, q = <-values, <-values
+	}
+	return p, q
+}
+
+func NewRPStatement(N *big.Int) *ModStatement {
+	st := &ModStatement{}
+	st.N = N
+	return st
+}
+
+func NewRPWitness(p *big.Int, q *big.Int) *ModWitness {
+	ws := &ModWitness{}
+	ws.p = p
+	ws.q = q
+	return ws
+}
+
 func square_root_modolo(a *big.Int, p *big.Int, q *big.Int) *big.Int {
 	if new(big.Int).Mod(p, big.NewInt(4)).Cmp(big.NewInt(3)) != 0 ||
 		new(big.Int).Mod(q, big.NewInt(4)).Cmp(big.NewInt(3)) != 0 {
@@ -91,7 +130,7 @@ func square_root_modolo_with_jacobi_test(a *big.Int, p *big.Int, q *big.Int) *bi
 	return z
 }
 
-func rpprove(st *ModStatement, ws *ModWitness) *ModProof {
+func RPProve(st *ModStatement, ws *ModWitness) *ModProof {
 	var err error
 	var w *big.Int
 	//m := 80 // soundness error
@@ -177,7 +216,7 @@ func rpprove(st *ModStatement, ws *ModWitness) *ModProof {
 	return modProof
 }
 
-func rpverify(st *ModStatement, proof *ModProof) bool {
+func RPVerify(st *ModStatement, proof *ModProof) bool {
 	res := true
 	var y_vec [m]*big.Int
 

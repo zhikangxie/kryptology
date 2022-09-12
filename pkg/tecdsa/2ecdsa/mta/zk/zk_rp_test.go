@@ -23,14 +23,11 @@ func TestZKRP(t *testing.T) {
 	sk, _ := paillier.NewSecretKey(p, q)
 	pk := makeNewPaillierPublicKey(t, sk.N)
 
-	st := &ModStatement{}
-	st.N = pk.N
-	ws := &ModWitness{}
-	ws.p = p
-	ws.q = q
+	st := NewRPStatement(pk.N)
+	ws := NewRPWitness(p, q)
 
-	proof := rpprove(st, ws)
-	res := rpverify(st, proof)
+	proof := RPProve(st, ws)
+	res := RPVerify(st, proof)
 
 	require.Equal(t, true, res)
 }
