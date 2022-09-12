@@ -61,17 +61,10 @@ func NewMultiplyReceiver(pk *paillier.PublicKey, sk *paillier.SecretKey, modws *
 	}
 }
 
-func makeNewPaillierPublicKey(n *big.Int) *paillier.PublicKey {
-
-	publicKey, _ := paillier.NewPubkey(n)
-
-	return publicKey
-}
-
 func KeyGenProve(bits uint) (*MTAPaillierSender, *MTAPaillierReceiver, *big.Int) {
 	p, q := zk.GenPQ(bits)
 	sk, _ := paillier.NewSecretKey(p, q)
-	pk := makeNewPaillierPublicKey(sk.N)
+	pk := &sk.PublicKey
 
 	st := zk.NewRPStatement(pk.N)
 	ws := zk.NewRPWitness(p, q)
@@ -85,18 +78,18 @@ func (sender *MTAPaillierSender) KeyGenVerify() bool {
 	return zk.RPVerify(sender.modst, sender.modproof)
 }
 
-func (sender *MTAPaillierSender) init_setup() (*zk.PwrSecurityPP, *zk.QRStatement, *zk.QRProof) {
+func (sender *MTAPaillierSender) Init_setup() (*zk.PwrSecurityPP, *zk.QRStatement, *zk.QRProof) {
 	return zk.PwrSetUpProve(128)
 }
 
-func (receiver *MTAPaillierReceiver) init_setup(st *zk.QRStatement, proof *zk.QRProof) {
+func (receiver *MTAPaillierReceiver) Init_setup(st *zk.QRStatement, proof *zk.QRProof) {
 	res := zk.PwrSetUpVerify(st, proof)
 	if res != true {
 		panic("Init setup failed")
 	}
 }
 
-func (receiver *MTAPaillierReceiver) init(pwrpp *zk.PwrSecurityPP, b *big.Int) *MultiplyRound1Output {
+func (receiver *MTAPaillierReceiver) Init(pwrpp *zk.PwrSecurityPP, b *big.Int) *MultiplyRound1Output {
 	var err error
 	var r *big.Int
 	round1Output := &MultiplyRound1Output{}
@@ -117,7 +110,7 @@ func (receiver *MTAPaillierReceiver) init(pwrpp *zk.PwrSecurityPP, b *big.Int) *
 	return round1Output
 }
 
-func (sender *MTAPaillierSender) update(pwrpp *zk.PwrSecurityPP, a *big.Int, round1Output *MultiplyRound1Output) (*big.Int, *MultiplyRound2Output) {
+func (sender *MTAPaillierSender) Update(pwrpp *zk.PwrSecurityPP, a *big.Int, round1Output *MultiplyRound1Output) (*big.Int, *MultiplyRound2Output) {
 	var err error
 
 	res := zk.PwrVerify(round1Output.pwrst, round1Output.pwrproof, round1Output.pwrpp)
@@ -150,7 +143,7 @@ func (sender *MTAPaillierSender) update(pwrpp *zk.PwrSecurityPP, a *big.Int, rou
 	return alpha, round2Output
 }
 
-func (receiver *MTAPaillierReceiver) multiply(round2Output *MultiplyRound2Output) *big.Int {
+func (receiver *MTAPaillierReceiver) Multiply(round2Output *MultiplyRound2Output) *big.Int {
 	//var err error
 	res := zk.AffranVerify(round2Output.affranst, round2Output.affranproof, round2Output.pwrpp)
 	if res != true {

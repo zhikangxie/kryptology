@@ -141,7 +141,7 @@ func (receiver *MTAOTReceiver) encode(beta curves.Scalar) ([kos.COtBlockSizeByte
 }
 
 // init Protocol 5., Multiplication, 3). Bob (receiver) encodes beta and initiates the cOT extension
-func (receiver *MTAOTReceiver) init(beta curves.Scalar) *kos.Round1Output {
+func (receiver *MTAOTReceiver) Init(beta curves.Scalar) *kos.Round1Output {
 	var err error
 	if receiver.omega, err = receiver.encode(beta); err != nil {
 		panic("MtA OT init")
@@ -164,7 +164,7 @@ func (receiver *MTAOTReceiver) init(beta curves.Scalar) *kos.Round1Output {
 // Doesn't actually send the message yet, only stashes it and moves onto the next steps of the multiplication protocol
 // specifically, Alice can then do step 5) (compute the outputs of the multiplication protocol), also stashes this.
 // Finishes by taking care of 7), after that, Alice is totally done with multiplication and has stashed the outputs.
-func (sender *MTAOTSender) update(alpha curves.Scalar, round1Output *kos.Round1Output) (curves.Scalar, *MultiplyRound2Output) {
+func (sender *MTAOTSender) Update(alpha curves.Scalar, round1Output *kos.Round1Output) (curves.Scalar, *MultiplyRound2Output) {
 	var err error
 	alphaHat := sender.curve.Scalar.Random(rand.Reader)
 	input := [kos.L][2]curves.Scalar{} // sender's input, namely integer "sums" in case w_j == 1.
@@ -216,7 +216,7 @@ func (sender *MTAOTSender) update(alpha curves.Scalar, round1Output *kos.Round1O
 // multiply Protocol 5., Multiplication, 3) and 6). Bob finalizes the cOT extension.
 // using that and Alice's multiplication message, Bob completes the multiplication protocol, including checks.
 // At the end, Bob's values tB_j are populated.
-func (receiver *MTAOTReceiver) multiply(round2Output *MultiplyRound2Output) curves.Scalar {
+func (receiver *MTAOTReceiver) Multiply(round2Output *MultiplyRound2Output) curves.Scalar {
 	chiWidth := 2
 	// write the output of the second round to the transcript
 	for i := 0; i < kos.Kappa; i++ {

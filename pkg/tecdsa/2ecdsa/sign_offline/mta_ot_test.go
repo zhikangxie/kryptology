@@ -29,9 +29,9 @@ func TestMtAOT(t *testing.T) {
 	alpha := curve.Scalar.Random(rand.Reader)
 	beta := curve.Scalar.Random(rand.Reader)
 
-	round1Output := receiver.init(beta)
-	ta, round2Output := sender.update(alpha, round1Output)
-	tb := receiver.multiply(round2Output)
+	round1Output := receiver.Init(beta)
+	ta, round2Output := sender.Update(alpha, round1Output)
+	tb := receiver.Multiply(round2Output)
 
 	product := alpha.Mul(beta)
 	sum := ta.Add(tb)

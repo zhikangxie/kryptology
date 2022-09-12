@@ -11,12 +11,12 @@ import (
 )
 
 type MTAReceiver[A any, B any] interface {
-	init(curves.Scalar) A
-	multiply(B) curves.Scalar
+	Init(curves.Scalar) A
+	Multiply(B) curves.Scalar
 }
 
 type MTASender[A any, B any] interface {
-	update(curves.Scalar, A) (curves.Scalar, B)
+	Update(curves.Scalar, A) (curves.Scalar, B)
 }
 
 type Alice[A any, B any] struct {
@@ -99,7 +99,7 @@ func (bob *Bob[A, B]) Step1() (schnorr.Commitment, A) {
 		panic("step 1")
 	}
 	bob.proof = proof
-	return commitment, bob.receiver.init(bob.k2)
+	return commitment, bob.receiver.Init(bob.k2)
 }
 
 func (alice *Alice[A, B]) Step2(commitment schnorr.Commitment, a A) (curves.Point, curves.Scalar, curves.Scalar, *schnorr.Proof, B) {
@@ -118,7 +118,7 @@ func (alice *Alice[A, B]) Step2(commitment schnorr.Commitment, a A) (curves.Poin
 
 	q1 := alice.curve.ScalarBaseMult(alice.x1)
 
-	ta, b := alice.sender.update(alice.x1, a)
+	ta, b := alice.sender.Update(alice.x1, a)
 
 	alice.r1 = alice.curve.Scalar.Random(rand.Reader)
 	cc := alice.r1.Mul(alice.x1).Add(ta).Sub(alice.sk)
@@ -127,7 +127,7 @@ func (alice *Alice[A, B]) Step2(commitment schnorr.Commitment, a A) (curves.Poin
 }
 
 func (bob *Bob[A, B]) Step3(q1 curves.Point, r1 curves.Scalar, cc curves.Scalar, proof *schnorr.Proof, b B) *schnorr.Proof {
-	tb := bob.receiver.multiply(b)
+	tb := bob.receiver.Multiply(b)
 
 	if !bob.curve.ScalarBaseMult(tb.Add(cc)).Equal(q1.Mul(r1.Add(bob.k2)).Sub(bob.pkPeer)) {
 		panic("step 3")
