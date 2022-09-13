@@ -131,10 +131,8 @@ func Prove(ws PwrWitness, st PwrStatement, pp PwrSecurityPP) PwrProof {
 	tx := merlin.NewTranscript("pwr")
 	proof := PwrProof{}
 	r1, _ := core.Rand(pp.N0)
-	twotlN0 := new(big.Int).Mul(new(big.Int).Exp(core.Two, big.NewInt(zk.T+zk.L), pp.N0), pp.N0)
-	r2, _ := core.Rand(twotlN0)
-	twotlq := new(big.Int).Mul(new(big.Int).Exp(core.Two, big.NewInt(zk.T+zk.L), pp.N0), st.q)
-	r3, _ := core.Rand(twotlq)
+	r2, _ := core.Rand(new(big.Int).Lsh(pp.N0, zk.T+zk.L))
+	r3, _ := core.Rand(new(big.Int).Lsh(st.q, zk.T+zk.L))
 	r4, _ := core.Rand(st.N)
 
 	proof.C = new(big.Int).Mod(new(big.Int).Mul(new(big.Int).Exp(pp.g, ws.x, pp.N0), new(big.Int).Exp(pp.h, r1, pp.N0)), pp.N0)
@@ -178,7 +176,7 @@ func Verify(st PwrStatement, proof PwrProof, pp PwrSecurityPP) bool {
 		panic("ZK Pwr verify fail 3")
 		res = false
 	}
-	if proof.z1.Cmp(new(big.Int).Lsh(st.q, zk.T+zk.L)) == 1 {
+	if proof.z1.Cmp(new(big.Int).Lsh(st.q, zk.T+zk.L)) != -1 {
 		panic("ZK Pwr verify fail 4")
 		res = false
 	}
