@@ -21,10 +21,10 @@ func Test(t *testing.T) {
 	prover_tx := merlin.NewTranscript("test")
 	verifier_tx := merlin.NewTranscript("test")
 
-	prover := Prover{pp, prover_tx}
-	verifier := Verifier{pp, verifier_tx}
+	h := new(big.Int).Mod(new(big.Int).Mul(h_sqrt, h_sqrt), pp.N0)
+	st := Statement{h}
 
-	statement, proof := prover.Prove(Witness{h_sqrt})
+	proof := Prove(Witness{h_sqrt}, st, prover_tx, pp)
 	//	require.True(t, verifier.Verify(statement, commitment, proof))
-	require.True(t, verifier.VerifyWithoutCom(statement, proof))
+	require.True(t, Verify(st, proof, verifier_tx, pp))
 }

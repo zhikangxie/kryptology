@@ -18,15 +18,15 @@ func Test(t *testing.T) {
 	h_sqrt, _ := rand.Int(rand.Reader, N0)
 	h := new(big.Int).Mod(new(big.Int).Mul(h_sqrt, h_sqrt), N0)
 	alpha, _ := rand.Int(rand.Reader, N0)
+	g := new(big.Int).Exp(h, alpha, N0)
 	pp := &Param{N0, h}
 
 	prover_tx := merlin.NewTranscript("test")
 	verifier_tx := merlin.NewTranscript("test")
 
-	prover := Prover{pp, prover_tx}
-	verifier := Verifier{pp, verifier_tx}
+	st := Statement{g}
 
-	statement, proof := prover.Prove(Witness{alpha})
+	proof := Prove(Witness{alpha}, st, prover_tx, pp)
 	//require.True(t, verifier.Verify(statement, commitment, proof))
-	require.True(t, verifier.VerifyWithoutCom(statement, proof))
+	require.True(t, Verify(st, proof, verifier_tx, pp))
 }
