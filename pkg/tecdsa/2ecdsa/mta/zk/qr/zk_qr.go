@@ -19,6 +19,7 @@ type Commitment struct {
 
 type Proof struct {
 	z [zk.T]*big.Int
+	e *big.Int
 }
 
 type Statement struct {
@@ -39,7 +40,7 @@ type Verifier struct {
 	tx *merlin.Transcript
 }
 
-func (prover *Prover) Prove(witness Witness) (Statement, Commitment, Proof) {
+func (prover *Prover) Prove(witness Witness) (Statement, Proof) {
 	h := new(big.Int).Mod(new(big.Int).Mul(witness.h_sqrt, witness.h_sqrt), prover.pp.N0)
 	prover.tx.AppendMessage([]byte("h"), h.Bytes())
 
@@ -66,7 +67,7 @@ func (prover *Prover) Prove(witness Witness) (Statement, Commitment, Proof) {
 		}
 	}
 
-	return Statement{h}, Commitment{a}, Proof{z}
+	return Statement{h}, Proof{z, e}
 }
 
 func (verifier *Verifier) Verify(statement Statement, commitment Commitment, proof Proof) bool {
@@ -93,5 +94,30 @@ func (verifier *Verifier) Verify(statement Statement, commitment Commitment, pro
 			}
 		}
 	}
+	return true
+}
+
+func (verifier *Verifier) VerifyWithoutCom(statement Statement, proof Proof) bool {
+	verifier.tx.AppendMessage([]byte("h"), statement.h.Bytes())
+	var a *big.Int
+
+	for i := 0; i < zk.T; i++ {
+		z2 := new(big.Int).Mod(new(big.Int).Mul(proof.z[i], proof.z[i]), verifier.pp.N0)
+		// a = h^-e * z^2 % N0
+		if proof.e.Bit(i) == 0 {
+			a = z2
+		} else {
+			a = new(big.Int).Mod(new(big.Int).Mul(new(big.Int).ModInverse(statement.h, verifier.pp.N0), z2), verifier.pp.N0)
+		}
+
+		verifier.tx.AppendMessage([]byte(fmt.Sprintf("a[%d]", i)), a.Bytes())
+	}
+
+	e := new(big.Int).SetBytes(verifier.tx.ExtractBytes([]byte("e"), zk.T/8))
+
+	if e.Cmp(proof.e) != 0 {
+		return false
+	}
+
 	return true
 }

@@ -26,6 +26,7 @@ func Test(t *testing.T) {
 	prover := Prover{pp, prover_tx}
 	verifier := Verifier{pp, verifier_tx}
 
-	statement, commitment, proof := prover.Prove(Witness{alpha})
-	require.True(t, verifier.Verify(statement, commitment, proof))
+	statement, proof := prover.Prove(Witness{alpha})
+	//require.True(t, verifier.Verify(statement, commitment, proof))
+	require.True(t, verifier.VerifyWithoutCom(statement, proof))
 }
