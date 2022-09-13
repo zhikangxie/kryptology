@@ -47,6 +47,18 @@ func NewSecurityPP(h *big.Int, g *big.Int, N0 *big.Int) PwrSecurityPP {
 	return pp
 }
 
+func (pp PwrSecurityPP) GetH() *big.Int {
+	return pp.h
+}
+
+func (pp PwrSecurityPP) GetG() *big.Int {
+	return pp.g
+}
+
+func (pp PwrSecurityPP) GetN0() *big.Int {
+	return pp.N0
+}
+
 func NewPwrStatement(N *big.Int, NN *big.Int, q *big.Int, c *big.Int) PwrStatement {
 	st := PwrStatement{}
 	st.N = N

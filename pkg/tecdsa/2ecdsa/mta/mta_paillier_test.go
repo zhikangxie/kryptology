@@ -15,8 +15,8 @@ func TestMtAPaillier(t *testing.T) {
 	require.True(t, sender.KeyGenVerify())
 
 	//setup of proof in pwr
-	pwrpp, qrst, qrproof := sender.Init_setup()
-	receiver.Init_setup(qrst, qrproof)
+	pwrpp, qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp := sender.Init_setup()
+	receiver.Init_setup(qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp)
 
 	a, err := crypto.Rand(q)
 	require.NoError(t, err)
