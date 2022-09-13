@@ -5,17 +5,18 @@ import (
 	"testing"
 
 	crypto "github.com/coinbase/kryptology/pkg/core"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMtAPaillier(t *testing.T) {
 
 	//Keygen
-	sender, receiver, q := KeyGenProve(128)
+	sender, receiver, q := KeyGenProve(zk.N_BITS / 2)
 	require.True(t, sender.KeyGenVerify())
 
 	//setup of proof in pwr
-	pwrpp, qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp := sender.Init_setup()
+	pwrpp, qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp := sender.Init_setup(zk.N_BITS / 2)
 	receiver.Init_setup(qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp)
 
 	a, err := crypto.Rand(q)
