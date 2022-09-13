@@ -77,8 +77,8 @@ func (sender *MTAPaillierSender) KeyGenVerify() bool {
 	return zk.RPVerify(sender.modst, sender.modproof)
 }
 
-func (sender *MTAPaillierSender) Init_setup() (zk_pwr.PwrSecurityPP, zk_qr.Statement, zk_qr.Proof, *zk_qr.Param, zk_qrdl.Statement, zk_qrdl.Proof, *zk_qrdl.Param) {
-	return zk_pwr.SetUpProve(128)
+func (sender *MTAPaillierSender) Init_setup(bits uint) (zk_pwr.PwrSecurityPP, zk_qr.Statement, zk_qr.Proof, *zk_qr.Param, zk_qrdl.Statement, zk_qrdl.Proof, *zk_qrdl.Param) {
+	return zk_pwr.SetUpProve(bits)
 }
 
 func (receiver *MTAPaillierReceiver) Init_setup(qrst zk_qr.Statement, qrproof zk_qr.Proof, qrpp *zk_qr.Param, qrdlst zk_qrdl.Statement, qrdlproof zk_qrdl.Proof, qrdlpp *zk_qrdl.Param) {
