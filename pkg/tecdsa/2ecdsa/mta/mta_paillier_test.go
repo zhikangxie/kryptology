@@ -1,34 +1,30 @@
 package mta
 
 import (
-	"math/big"
+	"crypto/rand"
 	"testing"
 
-	crypto "github.com/coinbase/kryptology/pkg/core"
-	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coinbase/kryptology/pkg/core/curves"
 )
 
 func TestMtAPaillier(t *testing.T) {
+	curve := curves.K256()
 
-	//Keygen
-	sender, receiver, q := KeyGenProve(zk.N_BITS / 2)
-	require.True(t, sender.KeyGenVerify())
+	sender := NewMultiplySender(curve)
+	receiver := NewMultiplyReceiver(curve)
 
-	//setup of proof in pwr
-	pwrpp, qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp := sender.Init_setup(zk.N_BITS / 2)
-	receiver.Init_setup(qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp)
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
 
-	a, err := crypto.Rand(q)
-	require.NoError(t, err)
-	b, err := crypto.Rand(q)
-	require.NoError(t, err)
+	alpha := curve.Scalar.Random(rand.Reader)
+	beta := curve.Scalar.Random(rand.Reader)
 
-	round1Output := receiver.Init(pwrpp, b)
-	ta, round2Output := sender.Update(pwrpp, a, round1Output)
+	round1Output := receiver.Init(beta)
+	ta, round2Output := sender.Update(alpha, round1Output)
 	tb := receiver.Multiply(round2Output)
 
-	product := new(big.Int).Mod(new(big.Int).Mul(a, b), q)
-	sum := new(big.Int).Mod(new(big.Int).Add(ta, tb), q)
-	require.Equal(t, product, sum)
+	require.Equal(t, alpha.Mul(beta), ta.Add(tb))
 }

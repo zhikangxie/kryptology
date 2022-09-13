@@ -9,8 +9,9 @@ import (
 	"github.com/gtank/merlin"
 )
 
-type Param struct {
-	N0 *big.Int
+// The prover and the verifier should have already agreed on N
+type Agreed struct {
+	N *big.Int
 }
 
 type Proof struct {
@@ -18,39 +19,30 @@ type Proof struct {
 	e *big.Int
 }
 
-type Statement struct {
-	h *big.Int
-}
+// h
+type Statement = big.Int
 
 type Witness struct {
 	h_sqrt *big.Int
 }
 
-func NewParam(N0 *big.Int) *Param {
-	return &Param{N0}
+func NewAgreed(N *big.Int) *Agreed {
+	return &Agreed{N}
 }
 
-func NewStatement(h *big.Int) Statement {
-	return Statement{h}
+func NewWitness(h_sqrt *big.Int) *Witness {
+	return &Witness{h_sqrt}
 }
 
-func (st *Statement) GetStatementH() *big.Int {
-	return st.h
-}
-
-func NewWitness(h_sqrt *big.Int) Witness {
-	return Witness{h_sqrt}
-}
-
-func Prove(witness Witness, statement Statement, tx *merlin.Transcript, pp *Param) Proof {
-	tx.AppendMessage([]byte("h"), statement.h.Bytes())
+func Prove(tx *merlin.Transcript, pp *Agreed, witness *Witness, h *Statement) *Proof {
+	tx.AppendMessage([]byte("h"), h.Bytes()) // Strong Fiat-Shamir
 
 	// Step 1: Commit
 	r := [zk.T]*big.Int{}
 	a := [zk.T]*big.Int{}
 	for i := 0; i < zk.T; i++ {
-		r[i], _ = rand.Int(rand.Reader, pp.N0)
-		a[i] = new(big.Int).Mod(new(big.Int).Mul(r[i], r[i]), pp.N0) // a = r^2 % N0
+		r[i], _ = rand.Int(rand.Reader, pp.N)
+		a[i] = new(big.Int).Mod(new(big.Int).Mul(r[i], r[i]), pp.N) // a = r^2 % N0
 		tx.AppendMessage([]byte(fmt.Sprintf("a[%d]", i)), a[i].Bytes())
 	}
 
@@ -64,34 +56,28 @@ func Prove(witness Witness, statement Statement, tx *merlin.Transcript, pp *Para
 		if e.Bit(i) == 0 {
 			z[i] = r[i]
 		} else {
-			z[i] = new(big.Int).Mod(new(big.Int).Mul(r[i], witness.h_sqrt), pp.N0)
+			z[i] = new(big.Int).Mod(new(big.Int).Mul(r[i], witness.h_sqrt), pp.N)
 		}
 	}
 
-	return Proof{z, e}
+	return &Proof{z, e}
 }
 
-func Verify(statement Statement, proof Proof, tx *merlin.Transcript, pp *Param) bool {
-	tx.AppendMessage([]byte("h"), statement.h.Bytes())
-	var a *big.Int
+func Verify(tx *merlin.Transcript, pp *Agreed, h *Statement, proof *Proof) bool {
+	tx.AppendMessage([]byte("h"), h.Bytes()) // Strong Fiat-Shamir
 
+	// Step 4: Verify (Optimized)
 	for i := 0; i < zk.T; i++ {
-		z2 := new(big.Int).Mod(new(big.Int).Mul(proof.z[i], proof.z[i]), pp.N0)
-		// a = h^-e * z^2 % N0
-		if proof.e.Bit(i) == 0 {
-			a = z2
-		} else {
-			a = new(big.Int).Mod(new(big.Int).Mul(new(big.Int).ModInverse(statement.h, pp.N0), z2), pp.N0)
+		// a = z^2 / h^e % N0
+		a := new(big.Int).Mod(new(big.Int).Mul(proof.z[i], proof.z[i]), pp.N)
+		if proof.e.Bit(i) == 1 {
+			a = new(big.Int).Mod(new(big.Int).Mul(new(big.Int).ModInverse(h, pp.N), a), pp.N)
 		}
-
 		tx.AppendMessage([]byte(fmt.Sprintf("a[%d]", i)), a.Bytes())
 	}
 
+	// Step 2: Challenge (Fiat-Shamir)
 	e := new(big.Int).SetBytes(tx.ExtractBytes([]byte("e"), zk.T/8))
 
-	if e.Cmp(proof.e) != 0 {
-		return false
-	}
-
-	return true
+	return e.Cmp(proof.e) == 0 // Compare the actual challenge with the alleged one
 }

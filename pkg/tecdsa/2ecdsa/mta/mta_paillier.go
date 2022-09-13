@@ -1,155 +1,207 @@
 package mta
 
 import (
+	"crypto/rand"
 	"math/big"
 
 	"github.com/coinbase/kryptology/pkg/core"
+	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/paillier"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk"
-	zk_pwr "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/pwr"
 	zk_qr "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/qr"
 	zk_qrdl "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/qrdl"
-	zk_raffran "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/raffran"
+	zk_r_affran "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/r_affran"
+	zk_r_p "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/r_p"
+	zk_r_pwr "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/r_pwr"
+	"github.com/gtank/merlin"
 )
 
+type Param struct {
+	q  *big.Int
+	N0 *big.Int
+	g0 *big.Int
+	h0 *big.Int
+	N  *big.Int
+	g  *big.Int
+	h  *big.Int
+}
+
 type MTAPaillierSender struct {
-	pk       *paillier.PublicKey
-	modst    *zk.ModStatement
-	modproof *zk.ModProof
+	tx    *merlin.Transcript
+	pp    *Param
+	curve *curves.Curve
 }
 
 type MTAPaillierReceiver struct {
-	pk    *paillier.PublicKey
+	tx    *merlin.Transcript
+	pp    *Param
+	curve *curves.Curve
 	sk    *paillier.SecretKey
-	modws *zk.ModWitness
-	p     *big.Int
-	q     *big.Int
+	c_B   *big.Int
+}
+
+type SetupStatement struct {
+	r_p  *zk_r_p.Statement
+	qr   *zk_qr.Statement
+	qrdl *zk_qrdl.Statement
+}
+
+type SetupProof struct {
+	r_p  *zk_r_p.Proof
+	qr   *zk_qr.Proof
+	qrdl *zk_qrdl.Proof
 }
 
 type MultiplyRound1Output struct {
-	cb       *big.Int
-	pwrst    zk_pwr.PwrStatement
-	pwrproof zk_pwr.PwrProof
-	pwrpp    zk_pwr.PwrSecurityPP
-	q        *big.Int
-	p        *big.Int
+	c_B   *zk_r_pwr.Statement
+	proof *zk_r_pwr.Proof
 }
 
 type MultiplyRound2Output struct {
-	ca          *big.Int
-	affranst    zk_raffran.AffranStatement
-	affranproof zk_raffran.AffranProof
-	pwrpp       zk_pwr.PwrSecurityPP
+	c_A   *zk_r_affran.Statement
+	proof *zk_r_affran.Proof
 }
 
-func NewMultiplySender(pk *paillier.PublicKey, modst *zk.ModStatement, modproof *zk.ModProof) *MTAPaillierSender {
+func NewMultiplySender(curve *curves.Curve) *MTAPaillierSender {
+	c, _ := curve.ToEllipticCurve()
 	return &MTAPaillierSender{
-		pk:       pk,
-		modst:    modst,
-		modproof: modproof,
+		tx: merlin.NewTranscript("MTA-Paillier"),
+		pp: &Param{
+			q: c.Params().N,
+		},
+		curve: curve,
 	}
 }
 
-func NewMultiplyReceiver(pk *paillier.PublicKey, sk *paillier.SecretKey, modws *zk.ModWitness, p *big.Int, q *big.Int) *MTAPaillierReceiver {
+func NewMultiplyReceiver(curve *curves.Curve) *MTAPaillierReceiver {
+	c, _ := curve.ToEllipticCurve()
 	return &MTAPaillierReceiver{
-		pk:    pk,
-		sk:    sk,
-		modws: modws,
-		p:     p,
-		q:     q,
+		tx: merlin.NewTranscript("MTA-Paillier"),
+		pp: &Param{
+			q: c.Params().N,
+		},
+		curve: curve,
 	}
 }
 
-func KeyGenProve(bits uint) (*MTAPaillierSender, *MTAPaillierReceiver, *big.Int) {
-	p, q := zk.GenPQ(bits)
+func (receiver *MTAPaillierReceiver) SetupInit() (SetupStatement, SetupProof) {
+	// P2 generates N, g, h
+	p, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	q, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	receiver.sk, _ = paillier.NewSecretKey(p, q)
+	receiver.pp.N = receiver.sk.N
+	h_sqrt, _ := rand.Int(rand.Reader, receiver.pp.N)
+	receiver.pp.h = new(big.Int).Mod(new(big.Int).Mul(h_sqrt, h_sqrt), receiver.pp.N)
+	alpha, _ := rand.Int(rand.Reader, receiver.pp.N)
+	receiver.pp.g = new(big.Int).Exp(receiver.pp.h, alpha, receiver.pp.N)
+
+	// P2 computes the corresponding proofs
+	input_r_p := receiver.pp.N
+	pi_r_p := zk_r_p.Prove(receiver.tx, zk_r_p.NewWitness(p, q), input_r_p)
+	input_qr := receiver.pp.h
+	pi_qr := zk_qr.Prove(receiver.tx, zk_qr.NewAgreed(receiver.pp.N), zk_qr.NewWitness(h_sqrt), input_qr)
+	input_qrdl := receiver.pp.g
+	pi_qrdl := zk_qrdl.Prove(receiver.tx, zk_qrdl.NewAgreed(receiver.pp.N, receiver.pp.h), zk_qrdl.NewWitness(alpha), input_qrdl)
+
+	return SetupStatement{input_r_p, input_qr, input_qrdl}, SetupProof{pi_r_p, pi_qr, pi_qrdl}
+}
+
+func (sender *MTAPaillierSender) SetupUpdate(statement SetupStatement, proof SetupProof) (SetupStatement, SetupProof) {
+	// P1 ensures N, g, h are valid
+	if !zk_r_p.Verify(sender.tx, statement.r_p, proof.r_p) {
+		panic("MtA SetupUpdate: R_P")
+	}
+	sender.pp.N = statement.r_p
+	if !zk_qr.Verify(sender.tx, zk_qr.NewAgreed(sender.pp.N), statement.qr, proof.qr) {
+		panic("MtA SetupUpdate: QR")
+	}
+	sender.pp.h = statement.qr
+	if !zk_qrdl.Verify(sender.tx, zk_qrdl.NewAgreed(sender.pp.N, sender.pp.h), statement.qrdl, proof.qrdl) {
+		panic("MtA SetupUpdate: QRdl")
+	}
+	sender.pp.g = statement.qrdl
+
+	// P1 generates N0, g0, h0
+	p, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	q, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
 	sk, _ := paillier.NewSecretKey(p, q)
-	pk := &sk.PublicKey
+	sender.pp.N0 = sk.N
+	h0_sqrt, _ := rand.Int(rand.Reader, sender.pp.N0)
+	sender.pp.h0 = new(big.Int).Mod(new(big.Int).Mul(h0_sqrt, h0_sqrt), sender.pp.N0)
+	alpha0, _ := rand.Int(rand.Reader, sender.pp.N0)
+	sender.pp.g0 = new(big.Int).Exp(sender.pp.h0, alpha0, sender.pp.N0)
 
-	st := zk.NewRPStatement(pk.N)
-	ws := zk.NewRPWitness(p, q)
+	// P1 computes the corresponding proofs
+	input_r_p := sender.pp.N0
+	pi_r_p := zk_r_p.Prove(sender.tx, zk_r_p.NewWitness(p, q), input_r_p)
+	input_qr := sender.pp.h0
+	pi_qr := zk_qr.Prove(sender.tx, zk_qr.NewAgreed(sender.pp.N0), zk_qr.NewWitness(h0_sqrt), input_qr)
+	input_qrdl := sender.pp.g0
+	pi_qrdl := zk_qrdl.Prove(sender.tx, zk_qrdl.NewAgreed(sender.pp.N0, sender.pp.h0), zk_qrdl.NewWitness(alpha0), input_qrdl)
 
-	proof := zk.RPProve(st, ws)
-
-	return NewMultiplySender(pk, st, proof), NewMultiplyReceiver(pk, sk, ws, p, q), q
+	return SetupStatement{input_r_p, input_qr, input_qrdl}, SetupProof{pi_r_p, pi_qr, pi_qrdl}
 }
 
-func (sender *MTAPaillierSender) KeyGenVerify() bool {
-	return zk.RPVerify(sender.modst, sender.modproof)
+func (receiver *MTAPaillierReceiver) SetupDone(statement SetupStatement, proof SetupProof) {
+	// P2 ensures N0, g0, h0 are valid
+	if !zk_r_p.Verify(receiver.tx, statement.r_p, proof.r_p) {
+		panic("MtA SetupDone: R_P")
+	}
+	receiver.pp.N0 = statement.r_p
+	if !zk_qr.Verify(receiver.tx, zk_qr.NewAgreed(receiver.pp.N0), statement.qr, proof.qr) {
+		panic("MtA SetupDone: QR")
+	}
+	receiver.pp.h0 = statement.qr
+	if !zk_qrdl.Verify(receiver.tx, zk_qrdl.NewAgreed(receiver.pp.N0, receiver.pp.h0), statement.qrdl, proof.qrdl) {
+		panic("MtA SetupDone: QRdl")
+	}
+	receiver.pp.g0 = statement.qrdl
 }
 
-func (sender *MTAPaillierSender) Init_setup(bits uint) (zk_pwr.PwrSecurityPP, zk_qr.Statement, zk_qr.Proof, *zk_qr.Param, zk_qrdl.Statement, zk_qrdl.Proof, *zk_qrdl.Param) {
-	return zk_pwr.SetUpProve(bits)
+func (receiver *MTAPaillierReceiver) Init(b curves.Scalar) *MultiplyRound1Output {
+	pp_r_pwr := zk_r_pwr.NewAgreed(receiver.pp.q, receiver.pp.N0, receiver.pp.g0, receiver.pp.h0, receiver.pp.N)
+
+	r, _ := rand.Int(rand.Reader, receiver.pp.N)
+	receiver.c_B = zk.Commit(r, pp_r_pwr.N_plus_1, receiver.pp.N, b.BigInt(), pp_r_pwr.NN)
+
+	input_r_pwr := receiver.c_B
+	pi_r_pwr := zk_r_pwr.Prove(receiver.tx, pp_r_pwr, zk_r_pwr.NewWitness(b.BigInt(), r), receiver.c_B)
+
+	return &MultiplyRound1Output{input_r_pwr, pi_r_pwr}
 }
 
-func (receiver *MTAPaillierReceiver) Init_setup(qrst zk_qr.Statement, qrproof zk_qr.Proof, qrpp *zk_qr.Param, qrdlst zk_qrdl.Statement, qrdlproof zk_qrdl.Proof, qrdlpp *zk_qrdl.Param) {
-	res := zk_pwr.SetUpVerify(qrst, qrproof, qrpp, qrdlst, qrdlproof, qrdlpp)
-	if res != true {
-		panic("Init setup failed")
+func (sender *MTAPaillierSender) Update(a curves.Scalar, round1Output *MultiplyRound1Output) (curves.Scalar, *MultiplyRound2Output) {
+	pp_r_pwr := zk_r_pwr.NewAgreed(sender.pp.q, sender.pp.N0, sender.pp.g0, sender.pp.h0, sender.pp.N)
+
+	if !zk_r_pwr.Verify(sender.tx, pp_r_pwr, round1Output.c_B, round1Output.proof) {
+		panic("MtA Update: R_PwR")
 	}
+
+	k := new(big.Int).Lsh(new(big.Int).Mul(sender.pp.q, sender.pp.q), zk.T+zk.L+zk.S)
+	alpha_prime, _ := rand.Int(rand.Reader, k)
+	alpha, _ := sender.curve.Scalar.SetBigInt(new(big.Int).Mod(alpha_prime, sender.pp.q))
+	alpha = alpha.Neg()
+
+	c := zk.Commit(round1Output.c_B, pp_r_pwr.N_plus_1, big.NewInt(1), new(big.Int).Lsh(sender.pp.q, zk.T+zk.L), pp_r_pwr.NN)
+	c_A := zk.Commit(c, pp_r_pwr.N_plus_1, a.BigInt(), alpha_prime, pp_r_pwr.NN)
+
+	pp_r_affran := zk_r_affran.NewAgreed(sender.pp.q, sender.pp.N, sender.pp.g, sender.pp.h, sender.pp.N, round1Output.c_B)
+
+	input_r_affran := c_A
+	pi_r_affran := zk_r_affran.Prove(sender.tx, pp_r_affran, zk_r_affran.NewWitness(a.BigInt(), alpha_prime), input_r_affran)
+
+	return alpha, &MultiplyRound2Output{input_r_affran, pi_r_affran}
 }
 
-func (receiver *MTAPaillierReceiver) Init(pwrpp zk_pwr.PwrSecurityPP, b *big.Int) *MultiplyRound1Output {
-	var err error
-	var r *big.Int
-	round1Output := &MultiplyRound1Output{}
-	round1Output.cb, r, err = receiver.pk.Encrypt(b)
-	round1Output.pwrst = zk_pwr.NewPwrStatement(receiver.pk.N, receiver.pk.N2, receiver.q, round1Output.cb)
-	pwrws := zk_pwr.NewPwrWitness(b, r)
-	round1Output.pwrproof = zk_pwr.Prove(pwrws, round1Output.pwrst, pwrpp)
+func (receiver *MTAPaillierReceiver) Multiply(round2Output *MultiplyRound2Output) curves.Scalar {
+	pp_r_affran := zk_r_affran.NewAgreed(receiver.pp.q, receiver.pp.N, receiver.pp.g, receiver.pp.h, receiver.pp.N, receiver.c_B)
 
-	round1Output.pwrpp = pwrpp
-	round1Output.q = receiver.q
-	round1Output.p = receiver.p
-
-	if err != nil {
-		panic("MtA Paillier init")
-	}
-	return round1Output
-}
-
-func (sender *MTAPaillierSender) Update(pwrpp zk_pwr.PwrSecurityPP, a *big.Int, round1Output *MultiplyRound1Output) (*big.Int, *MultiplyRound2Output) {
-	var err error
-
-	res := zk_pwr.Verify(round1Output.pwrst, round1Output.pwrproof, round1Output.pwrpp)
-	if res != true {
-		panic("Sender verify pwr proof failed")
+	if !zk_r_affran.Verify(receiver.tx, pp_r_affran, round2Output.c_A, round2Output.proof) {
+		panic("MtA Multiply: R_AffRan")
 	}
 
-	//k := new(big.Int).Lsh(new(big.Int).Mul(round1Output.q, round1Output.q), t+l+s)
-	var cipher_alpha_hat paillier.Ciphertext
-	round2Output := &MultiplyRound2Output{}
-	hatalpha, err := core.Rand(sender.pk.N)
-	alpha := new(big.Int).Mul(hatalpha, big.NewInt(-1))
-	N_plus_1 := new(big.Int).Add(sender.pk.N, big.NewInt(1))
-	c := new(big.Int).Mod(new(big.Int).Mul(round1Output.cb, new(big.Int).Exp(N_plus_1, new(big.Int).Lsh(round1Output.q, zk.T+zk.L), sender.pk.N2)), sender.pk.N2)
-	round2Output.ca = new(big.Int).Exp(c, a, sender.pk.N2) //cb^a mod N^2
-	cipher_alpha_hat = new(big.Int).Mod(new(big.Int).Exp(N_plus_1, hatalpha, sender.pk.N2), sender.pk.N2)
-	round2Output.ca, err = core.Mul(round2Output.ca, cipher_alpha_hat, sender.pk.N2)
-	round2Output.affranst = zk_raffran.NewAffranStatement(sender.pk.N2, sender.pk.N, round1Output.q, round2Output.ca, round1Output.cb)
-	affranws := zk_raffran.NewAffranWitness(a, hatalpha)
-	round2Output.affranproof = zk_raffran.Prove(affranws, round2Output.affranst, pwrpp)
-
-	round2Output.pwrpp = pwrpp
-
-	if err != nil {
-		panic(err)
-	}
-
-	return alpha, round2Output
-}
-
-func (receiver *MTAPaillierReceiver) Multiply(round2Output *MultiplyRound2Output) *big.Int {
-	//var err error
-	res := zk_raffran.Verify(round2Output.affranst, round2Output.affranproof, round2Output.pwrpp)
-	if res != true {
-		panic("Sender verify affran proof failed")
-	}
-
-	beta, err := receiver.sk.Decrypt(round2Output.ca)
-
-	if err != nil {
-		panic("MtA Paillier multiply")
-	}
+	beta_prime, _ := receiver.sk.Decrypt(round2Output.c_A)
+	beta, _ := receiver.curve.Scalar.SetBigInt(new(big.Int).Mod(beta_prime, receiver.pp.q))
 
 	return beta
 }
