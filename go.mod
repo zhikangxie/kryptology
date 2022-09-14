@@ -17,7 +17,10 @@ require (
 	golang.org/x/tools v0.1.5
 )
 
+require github.com/rainycape/dl v0.0.0-20151222075243-1b01514224a1 // indirect
+
 require (
+	github.com/credentials/safeprime v0.0.0-20180723204434-215fbc7208bf
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mimoo/StrobeGo v0.0.0-20181016162300-f8f6d4d2b643 // indirect
