@@ -1,4 +1,4 @@
-package mta
+package mta_paillier
 
 import (
 	"crypto/rand"
@@ -7,12 +7,12 @@ import (
 	"github.com/coinbase/kryptology/pkg/core"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/paillier"
-	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk"
-	zk_qr "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/qr"
-	zk_qrdl "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/qrdl"
-	zk_r_affran "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/r_affran"
-	zk_r_p "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/r_p"
-	zk_r_pwr "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk/r_pwr"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk/qr"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk/qrdl"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk/r_affran"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk/r_p"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk/r_pwr"
 	"github.com/gtank/merlin"
 )
 
@@ -26,13 +26,13 @@ type Param struct {
 	h  *big.Int
 }
 
-type MTAPaillierSender struct {
+type Sender struct {
 	tx    *merlin.Transcript
 	pp    *Param
 	curve *curves.Curve
 }
 
-type MTAPaillierReceiver struct {
+type Receiver struct {
 	tx    *merlin.Transcript
 	pp    *Param
 	curve *curves.Curve
@@ -52,19 +52,19 @@ type SetupProof struct {
 	qrdl *zk_qrdl.Proof
 }
 
-type MultiplyRound1Output struct {
+type Round1Output struct {
 	c_B   *zk_r_pwr.Statement
 	proof *zk_r_pwr.Proof
 }
 
-type MultiplyRound2Output struct {
+type Round2Output struct {
 	c_A   *zk_r_affran.Statement
 	proof *zk_r_affran.Proof
 }
 
-func NewMultiplySender(curve *curves.Curve) *MTAPaillierSender {
+func NewSender(curve *curves.Curve) *Sender {
 	c, _ := curve.ToEllipticCurve()
-	return &MTAPaillierSender{
+	return &Sender{
 		tx: merlin.NewTranscript("MTA-Paillier"),
 		pp: &Param{
 			q: c.Params().N,
@@ -73,9 +73,9 @@ func NewMultiplySender(curve *curves.Curve) *MTAPaillierSender {
 	}
 }
 
-func NewMultiplyReceiver(curve *curves.Curve) *MTAPaillierReceiver {
+func NewReceiver(curve *curves.Curve) *Receiver {
 	c, _ := curve.ToEllipticCurve()
-	return &MTAPaillierReceiver{
+	return &Receiver{
 		tx: merlin.NewTranscript("MTA-Paillier"),
 		pp: &Param{
 			q: c.Params().N,
@@ -84,7 +84,7 @@ func NewMultiplyReceiver(curve *curves.Curve) *MTAPaillierReceiver {
 	}
 }
 
-func (receiver *MTAPaillierReceiver) SetupInit() (SetupStatement, SetupProof) {
+func (receiver *Receiver) SetupInit() (SetupStatement, SetupProof) {
 	// P2 generates N, g, h
 	p, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
 	q, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
@@ -106,7 +106,7 @@ func (receiver *MTAPaillierReceiver) SetupInit() (SetupStatement, SetupProof) {
 	return SetupStatement{input_r_p, input_qr, input_qrdl}, SetupProof{pi_r_p, pi_qr, pi_qrdl}
 }
 
-func (sender *MTAPaillierSender) SetupUpdate(statement SetupStatement, proof SetupProof) (SetupStatement, SetupProof) {
+func (sender *Sender) SetupUpdate(statement SetupStatement, proof SetupProof) (SetupStatement, SetupProof) {
 	// P1 ensures N, g, h are valid
 	if !zk_r_p.Verify(sender.tx, statement.r_p, proof.r_p) {
 		panic("MtA SetupUpdate: R_P")
@@ -142,7 +142,7 @@ func (sender *MTAPaillierSender) SetupUpdate(statement SetupStatement, proof Set
 	return SetupStatement{input_r_p, input_qr, input_qrdl}, SetupProof{pi_r_p, pi_qr, pi_qrdl}
 }
 
-func (receiver *MTAPaillierReceiver) SetupDone(statement SetupStatement, proof SetupProof) {
+func (receiver *Receiver) SetupDone(statement SetupStatement, proof SetupProof) {
 	// P2 ensures N0, g0, h0 are valid
 	if !zk_r_p.Verify(receiver.tx, statement.r_p, proof.r_p) {
 		panic("MtA SetupDone: R_P")
@@ -158,7 +158,7 @@ func (receiver *MTAPaillierReceiver) SetupDone(statement SetupStatement, proof S
 	receiver.pp.g0 = statement.qrdl
 }
 
-func (receiver *MTAPaillierReceiver) Init(b curves.Scalar) *MultiplyRound1Output {
+func (receiver *Receiver) Init(b curves.Scalar) *Round1Output {
 	pp_r_pwr := zk_r_pwr.NewAgreed(receiver.pp.q, receiver.pp.N0, receiver.pp.g0, receiver.pp.h0, receiver.pp.N)
 
 	r, _ := rand.Int(rand.Reader, receiver.pp.N)
@@ -167,10 +167,10 @@ func (receiver *MTAPaillierReceiver) Init(b curves.Scalar) *MultiplyRound1Output
 	input_r_pwr := receiver.c_B
 	pi_r_pwr := zk_r_pwr.Prove(receiver.tx, pp_r_pwr, zk_r_pwr.NewWitness(b.BigInt(), r), receiver.c_B)
 
-	return &MultiplyRound1Output{input_r_pwr, pi_r_pwr}
+	return &Round1Output{input_r_pwr, pi_r_pwr}
 }
 
-func (sender *MTAPaillierSender) Update(a curves.Scalar, round1Output *MultiplyRound1Output) (curves.Scalar, *MultiplyRound2Output) {
+func (sender *Sender) Update(a curves.Scalar, round1Output *Round1Output) (curves.Scalar, *Round2Output) {
 	pp_r_pwr := zk_r_pwr.NewAgreed(sender.pp.q, sender.pp.N0, sender.pp.g0, sender.pp.h0, sender.pp.N)
 
 	if !zk_r_pwr.Verify(sender.tx, pp_r_pwr, round1Output.c_B, round1Output.proof) {
@@ -190,10 +190,10 @@ func (sender *MTAPaillierSender) Update(a curves.Scalar, round1Output *MultiplyR
 	input_r_affran := c_A
 	pi_r_affran := zk_r_affran.Prove(sender.tx, pp_r_affran, zk_r_affran.NewWitness(a.BigInt(), alpha_prime), input_r_affran)
 
-	return alpha, &MultiplyRound2Output{input_r_affran, pi_r_affran}
+	return alpha, &Round2Output{input_r_affran, pi_r_affran}
 }
 
-func (receiver *MTAPaillierReceiver) Multiply(round2Output *MultiplyRound2Output) curves.Scalar {
+func (receiver *Receiver) Multiply(round2Output *Round2Output) curves.Scalar {
 	pp_r_affran := zk_r_affran.NewAgreed(receiver.pp.q, receiver.pp.N, receiver.pp.g, receiver.pp.h, receiver.pp.N, receiver.c_B)
 
 	if !zk_r_affran.Verify(receiver.tx, pp_r_affran, round2Output.c_A, round2Output.proof) {

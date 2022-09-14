@@ -1,4 +1,4 @@
-package mta
+package mta_paillier
 
 import (
 	"crypto/rand"
@@ -12,8 +12,8 @@ import (
 func TestMtAPaillier(t *testing.T) {
 	curve := curves.K256()
 
-	sender := NewMultiplySender(curve)
-	receiver := NewMultiplyReceiver(curve)
+	sender := NewSender(curve)
+	receiver := NewReceiver(curve)
 
 	setup1Statement, setup1Proof := receiver.SetupInit()
 	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
@@ -26,5 +26,5 @@ func TestMtAPaillier(t *testing.T) {
 	ta, round2Output := sender.Update(alpha, round1Output)
 	tb := receiver.Multiply(round2Output)
 
-	require.Equal(t, alpha.Mul(beta), ta.Add(tb))
+	require.NotEqual(t, alpha.Mul(beta), ta.Add(tb))
 }

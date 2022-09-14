@@ -1,4 +1,4 @@
-package sign_offline
+package mta_ot
 
 import (
 	"crypto/rand"
@@ -21,9 +21,9 @@ func TestMtAOT(t *testing.T) {
 	baseOtSenderOutput, baseOtReceiverOutput, err := ottest.RunSimplestOT(curve, kos.Kappa, hashKeySeed)
 	require.NoError(t, err)
 
-	sender, err := NewMultiplySender(baseOtReceiverOutput, curve, hashKeySeed)
+	sender, err := NewSender(baseOtReceiverOutput, curve, hashKeySeed)
 	require.NoError(t, err)
-	receiver, err := NewMultiplyReceiver(baseOtSenderOutput, curve, hashKeySeed)
+	receiver, err := NewReceiver(baseOtSenderOutput, curve, hashKeySeed)
 	require.NoError(t, err)
 
 	alpha := curve.Scalar.Random(rand.Reader)

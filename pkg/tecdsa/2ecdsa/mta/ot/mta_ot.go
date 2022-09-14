@@ -1,4 +1,4 @@
-package sign_offline
+package mta_ot
 
 import (
 	"crypto/rand"
@@ -21,23 +21,23 @@ import (
 // the functionality multiplies their two scalars modulo q, and then randomly additively shares the product mod q.
 // it then returns the two respective additive shares to the two parties.
 
-// MTAOTSender is the party that plays the role of Sender in the multiplication protocol (protocol 5 of the paper).
-type MTAOTSender struct {
-	cOtSender           *kos.Sender   // underlying cOT sender struct, used by mult.
-	gadget              [kos.L]curves.Scalar
-	curve               *curves.Curve
-	transcript          *merlin.Transcript
-	uniqueSessionId     [simplest.DigestSize]byte
+// Sender is the party that plays the role of Sender in the multiplication protocol (protocol 5 of the paper).
+type Sender struct {
+	cOtSender       *kos.Sender // underlying cOT sender struct, used by mult.
+	gadget          [kos.L]curves.Scalar
+	curve           *curves.Curve
+	transcript      *merlin.Transcript
+	uniqueSessionId [simplest.DigestSize]byte
 }
 
-// MTAOTReceiver is the party that plays the role of Sender in the multiplication protocol (protocol 5 of the paper).
-type MTAOTReceiver struct {
-	cOtReceiver         *kos.Receiver               // underlying cOT receiver struct, used by mult.
-    omega               [kos.COtBlockSizeBytes]byte // this is used as an intermediate result during the course of mult.
-	gadget              [kos.L]curves.Scalar
-	curve               *curves.Curve
-	transcript          *merlin.Transcript
-	uniqueSessionId     [simplest.DigestSize]byte
+// Receiver is the party that plays the role of Sender in the multiplication protocol (protocol 5 of the paper).
+type Receiver struct {
+	cOtReceiver     *kos.Receiver               // underlying cOT receiver struct, used by mult.
+	omega           [kos.COtBlockSizeBytes]byte // this is used as an intermediate result during the course of mult.
+	gadget          [kos.L]curves.Scalar
+	curve           *curves.Curve
+	transcript      *merlin.Transcript
+	uniqueSessionId [simplest.DigestSize]byte
 }
 
 func generateGadgetVector(curve *curves.Curve) ([kos.L]curves.Scalar, error) {
@@ -64,10 +64,10 @@ func generateGadgetVector(curve *curves.Curve) ([kos.L]curves.Scalar, error) {
 	return gadget, nil
 }
 
-// NewMultiplySender generates a `MultiplySender` instance, ready to take part in multiplication as the "sender".
+// NewSender generates a `MultiplySender` instance, ready to take part in multiplication as the "sender".
 // You must supply it the _output_ of a seed OT, from the receiver's point of view, as well as params and a unique ID.
 // That is, the mult sender must run the base OT as the receiver; note the (apparent) reversal of roles.
-func NewMultiplySender(seedOtResults *simplest.ReceiverOutput, curve *curves.Curve, uniqueSessionId [simplest.DigestSize]byte) (*MTAOTSender, error) {
+func NewSender(seedOtResults *simplest.ReceiverOutput, curve *curves.Curve, uniqueSessionId [simplest.DigestSize]byte) (*Sender, error) {
 	sender := kos.NewCOtSender(seedOtResults, curve)
 	gadget, err := generateGadgetVector(curve)
 	if err != nil {
@@ -76,7 +76,7 @@ func NewMultiplySender(seedOtResults *simplest.ReceiverOutput, curve *curves.Cur
 
 	transcript := merlin.NewTranscript("Coinbase_DKLs_Multiply")
 	transcript.AppendMessage([]byte("session_id"), uniqueSessionId[:])
-	return &MTAOTSender{
+	return &Sender{
 		cOtSender:       sender,
 		curve:           curve,
 		transcript:      transcript,
@@ -85,10 +85,10 @@ func NewMultiplySender(seedOtResults *simplest.ReceiverOutput, curve *curves.Cur
 	}, nil
 }
 
-// NewMultiplyReceiver generates a `MultiplyReceiver` instance, ready to take part in multiplication as the "receiver".
+// NewReceiver generates a `MultiplyReceiver` instance, ready to take part in multiplication as the "receiver".
 // You must supply it the _output_ of a seed OT, from the sender's point of view, as well as params and a unique ID.
 // That is, the mult sender must run the base OT as the sender; note the (apparent) reversal of roles.
-func NewMultiplyReceiver(seedOtResults *simplest.SenderOutput, curve *curves.Curve, uniqueSessionId [simplest.DigestSize]byte) (*MTAOTReceiver, error) {
+func NewReceiver(seedOtResults *simplest.SenderOutput, curve *curves.Curve, uniqueSessionId [simplest.DigestSize]byte) (*Receiver, error) {
 	receiver := kos.NewCOtReceiver(seedOtResults, curve)
 	gadget, err := generateGadgetVector(curve)
 	if err != nil {
@@ -96,7 +96,7 @@ func NewMultiplyReceiver(seedOtResults *simplest.SenderOutput, curve *curves.Cur
 	}
 	transcript := merlin.NewTranscript("Coinbase_DKLs_Multiply")
 	transcript.AppendMessage([]byte("session_id"), uniqueSessionId[:])
-	return &MTAOTReceiver{
+	return &Receiver{
 		cOtReceiver:     receiver,
 		curve:           curve,
 		transcript:      transcript,
@@ -105,8 +105,10 @@ func NewMultiplyReceiver(seedOtResults *simplest.SenderOutput, curve *curves.Cur
 	}, nil
 }
 
-// MultiplyRound2Output is the output of the second round of the multiplication protocol.
-type MultiplyRound2Output struct {
+type Round1Output = kos.Round1Output
+
+// Round2Output is the output of the second round of the multiplication protocol.
+type Round2Output struct {
 	COTRound2Output *kos.Round2Output
 	R               [kos.L]curves.Scalar
 	U               curves.Scalar
@@ -115,7 +117,7 @@ type MultiplyRound2Output struct {
 // Algorithm 5. in DKLs. "Encodes" Bob's secret input scalars `beta` in the right way, using the opts.
 // The idea is that if Bob were to just put beta's as the choice vector, then Alice could learn a few of Bob's bits.
 // using selective failure attacks. so you subtract random components of a public random vector. see paper for details.
-func (receiver *MTAOTReceiver) encode(beta curves.Scalar) ([kos.COtBlockSizeBytes]byte, error) {
+func (receiver *Receiver) encode(beta curves.Scalar) ([kos.COtBlockSizeBytes]byte, error) {
 	// passing beta by value, so that we can mutate it locally. check that this does what i want.
 	encoding := [kos.COtBlockSizeBytes]byte{}
 	bytesOfBetaMinusDotProduct := beta.Bytes()
@@ -141,7 +143,7 @@ func (receiver *MTAOTReceiver) encode(beta curves.Scalar) ([kos.COtBlockSizeByte
 }
 
 // init Protocol 5., Multiplication, 3). Bob (receiver) encodes beta and initiates the cOT extension
-func (receiver *MTAOTReceiver) Init(beta curves.Scalar) *kos.Round1Output {
+func (receiver *Receiver) Init(beta curves.Scalar) *Round1Output {
 	var err error
 	if receiver.omega, err = receiver.encode(beta); err != nil {
 		panic("MtA OT init")
@@ -164,7 +166,7 @@ func (receiver *MTAOTReceiver) Init(beta curves.Scalar) *kos.Round1Output {
 // Doesn't actually send the message yet, only stashes it and moves onto the next steps of the multiplication protocol
 // specifically, Alice can then do step 5) (compute the outputs of the multiplication protocol), also stashes this.
 // Finishes by taking care of 7), after that, Alice is totally done with multiplication and has stashed the outputs.
-func (sender *MTAOTSender) Update(alpha curves.Scalar, round1Output *kos.Round1Output) (curves.Scalar, *MultiplyRound2Output) {
+func (sender *Sender) Update(alpha curves.Scalar, round1Output *kos.Round1Output) (curves.Scalar, *Round2Output) {
 	var err error
 	alphaHat := sender.curve.Scalar.Random(rand.Reader)
 	input := [kos.L][2]curves.Scalar{} // sender's input, namely integer "sums" in case w_j == 1.
@@ -172,7 +174,7 @@ func (sender *MTAOTSender) Update(alpha curves.Scalar, round1Output *kos.Round1O
 		input[j][0] = alpha
 		input[j][1] = alphaHat
 	}
-	round2Output := &MultiplyRound2Output{}
+	round2Output := &Round2Output{}
 	round2Output.COTRound2Output, err = sender.cOtSender.Round2Transfer(sender.uniqueSessionId, input, round1Output)
 	if err != nil {
 		panic("MtA OT update")
@@ -216,7 +218,7 @@ func (sender *MTAOTSender) Update(alpha curves.Scalar, round1Output *kos.Round1O
 // multiply Protocol 5., Multiplication, 3) and 6). Bob finalizes the cOT extension.
 // using that and Alice's multiplication message, Bob completes the multiplication protocol, including checks.
 // At the end, Bob's values tB_j are populated.
-func (receiver *MTAOTReceiver) Multiply(round2Output *MultiplyRound2Output) curves.Scalar {
+func (receiver *Receiver) Multiply(round2Output *Round2Output) curves.Scalar {
 	chiWidth := 2
 	// write the output of the second round to the transcript
 	for i := 0; i < kos.Kappa; i++ {

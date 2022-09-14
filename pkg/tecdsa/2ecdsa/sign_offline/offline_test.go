@@ -9,9 +9,11 @@ import (
 	"github.com/coinbase/kryptology/pkg/ot/base/simplest"
 	"github.com/coinbase/kryptology/pkg/ot/extension/kos"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/dkg"
+	mta_ot "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/ot"
+	mta_paillier "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier"
 )
 
-func TestOffline(t *testing.T) {
+func TestOfflineOT(t *testing.T) {
 	curve := curves.K256()
 
 	alice := dkg.NewAlice(curve)
@@ -44,12 +46,54 @@ func TestOffline(t *testing.T) {
 	r5, _ := sender.Round5Verify(r4)
 	receiver.Round6Verify(r5)
 
-	mta_sender, _ := NewMultiplySender(receiver.Output, curve, uniqueSessionId)
-	mta_receiver, _ := NewMultiplyReceiver(sender.Output, curve, uniqueSessionId)
+	mta_sender, _ := mta_ot.NewSender(receiver.Output, curve, uniqueSessionId)
+	mta_receiver, _ := mta_ot.NewReceiver(sender.Output, curve, uniqueSessionId)
 
 	{
-		alice := NewAlice[*kos.Round1Output, *MultiplyRound2Output](curve, aliceView, mta_sender)
-		bob := NewBob[*kos.Round1Output, *MultiplyRound2Output](curve, bobView, mta_receiver)
+		alice := NewAlice[*mta_ot.Round1Output, *mta_ot.Round2Output](curve, aliceView, mta_sender)
+		bob := NewBob[*mta_ot.Round1Output, *mta_ot.Round2Output](curve, bobView, mta_receiver)
+
+		commitment, a := bob.Step1()
+		q1, r1, cc, proof, b := alice.Step2(commitment, a)
+		proof = bob.Step3(q1, r1, cc, proof, b)
+		alice.Step4(proof)
+
+		require.Equal(t, alice.Output().R, bob.Output().R)
+	}
+}
+
+func TestOfflinePaillier(t *testing.T) {
+	curve := curves.K256()
+
+	alice := dkg.NewAlice(curve)
+	bob := dkg.NewBob(curve)
+
+	commitment, err := alice.Step1()
+	require.NoError(t, err)
+	bobProof, err := bob.Step2(commitment)
+	require.NoError(t, err)
+	aliceProof, err := alice.Step3(bobProof)
+	require.NoError(t, err)
+	err = bob.Step4(aliceProof)
+	require.NoError(t, err)
+
+	aliceView := alice.Output()
+	bobView := bob.Output()
+
+	require.Equal(t, aliceView.Pk, bobView.PkPeer)
+	require.Equal(t, aliceView.PkPeer, bobView.Pk)
+	require.Equal(t, aliceView.PkJoint, bobView.PkJoint)
+
+	sender := mta_paillier.NewSender(curve)
+	receiver := mta_paillier.NewReceiver(curve)
+
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
+
+	{
+		alice := NewAlice[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, aliceView, sender)
+		bob := NewBob[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, bobView, receiver)
 
 		commitment, a := bob.Step1()
 		q1, r1, cc, proof, b := alice.Step2(commitment, a)

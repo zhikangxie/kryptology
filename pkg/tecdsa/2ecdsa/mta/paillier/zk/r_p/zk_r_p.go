@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk"
 	"github.com/gtank/merlin"
 )
 
@@ -32,18 +32,6 @@ type Witness struct {
 
 func NewWitness(p *big.Int, q *big.Int) *Witness {
 	return &Witness{p, q}
-}
-
-func square_root_modolo(a *big.Int, p *big.Int, q *big.Int) *big.Int {
-	inv_p_mod_q := new(big.Int).ModInverse(p, q)
-	inv_q_mod_p := new(big.Int).ModInverse(q, p)
-
-	vsrpqi := new(big.Int).Mul(new(big.Int).Mul(new(big.Int).ModSqrt(a, p), q), inv_q_mod_p)
-	vsrqpi := new(big.Int).Mul(new(big.Int).Mul(new(big.Int).ModSqrt(a, q), p), inv_p_mod_q)
-
-	z := new(big.Int).Add(vsrpqi, vsrqpi)
-
-	return z
 }
 
 func Prove(tx *merlin.Transcript, witness *Witness, N *Statement) *Proof {
@@ -82,24 +70,33 @@ func Prove(tx *merlin.Transcript, witness *Witness, N *Statement) *Proof {
 	a := [zk.T]bool{}
 	b := [zk.T]bool{}
 	z := [zk.T]*big.Int{}
-	phi_N := new(big.Int).Mul(new(big.Int).Sub(witness.p, big.NewInt(1)), new(big.Int).Sub(witness.q, big.NewInt(1)))
+	p, q := witness.p, witness.q
+	phi_N := new(big.Int).Mul(new(big.Int).Sub(p, big.NewInt(1)), new(big.Int).Sub(q, big.NewInt(1)))
 	index := new(big.Int).ModInverse(N, phi_N)
+	inv_p_mod_q, inv_q_mod_p := new(big.Int).ModInverse(p, q), new(big.Int).ModInverse(q, p)
 	for i := 0; i < zk.T; i++ {
 		z[i] = new(big.Int).Exp(y[i], index, N)
-	Outside:
-		for _, a[i] = range []bool{false, true} {
-			for _, b[i] = range []bool{false, true} {
-				y := y[i]
-				if a[i] {
-					y = new(big.Int).Neg(y)
-				}
-				if b[i] {
-					y = new(big.Int).Mul(y, w)
-				}
-				if big.Jacobi(y, witness.p) == 1 && big.Jacobi(y, witness.q) == 1 {
-					x[i] = square_root_modolo(square_root_modolo(y, witness.p, witness.q), witness.p, witness.q)
-					break Outside
-				}
+		for _, ab := range [][]bool{{false, false}, {false, true}, {true, false}, {true, true}} {
+			y := y[i]
+			if ab[0] {
+				y = new(big.Int).Neg(y)
+			}
+			if ab[1] {
+				y = new(big.Int).Mul(y, w)
+			}
+			y = new(big.Int).Mod(y, N)
+			if big.Jacobi(y, p) == 1 && big.Jacobi(y, q) == 1 {
+				// y has 4 square roots, i.e.,
+				// (1) CRT(sqrt(y, p), sqrt(y, q))
+				// (2) CRT(p - sqrt(y, p), sqrt(y, q))
+				// (3) CRT(sqrt(y, p), q - sqrt(y, q))
+				// (4) CRT(p - sqrt(y, p), q - sqrt(y, q))
+				// But only (1) has its own square root
+				y_sqrt := zk.CRT(new(big.Int).ModSqrt(y, p), new(big.Int).ModSqrt(y, q), p, q, inv_p_mod_q, inv_q_mod_p)
+				x[i] = zk.CRT(new(big.Int).ModSqrt(y_sqrt, p), new(big.Int).ModSqrt(y_sqrt, q), p, q, inv_p_mod_q, inv_q_mod_p)
+				a[i] = ab[0]
+				b[i] = ab[1]
+				break
 			}
 		}
 	}

@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"math/big"
 
-	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/zk"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk"
 	"github.com/gtank/merlin"
 )
 
