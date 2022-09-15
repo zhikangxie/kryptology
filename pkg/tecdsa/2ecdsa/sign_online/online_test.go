@@ -5,9 +5,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coinbase/kryptology/pkg/core"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/ot/base/simplest"
 	"github.com/coinbase/kryptology/pkg/ot/extension/kos"
+	"github.com/coinbase/kryptology/pkg/ot/ottest"
+	"github.com/coinbase/kryptology/pkg/paillier"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/dkg"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/ot"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier"
@@ -72,6 +75,137 @@ func TestOnlineOT(t *testing.T) {
 	}
 }
 
+func BenchmarkOnlineOT(b *testing.B) {
+	curve := curves.K256()
+
+	alice := dkg.NewAlice(curve)
+	bob := dkg.NewBob(curve)
+
+	commitment, _ := alice.Step1()
+	bobProof, _ := bob.Step2(commitment)
+	aliceProof, _ := alice.Step3(bobProof)
+	_ = bob.Step4(aliceProof)
+
+	uniqueSessionId := [simplest.DigestSize]byte{}
+
+	baseOtSenderOutput, baseOtReceiverOutput, _ := ottest.RunSimplestOT(curve, kos.Kappa, uniqueSessionId)
+
+	mta_sender, _ := mta_ot.NewSender(baseOtReceiverOutput, curve, uniqueSessionId)
+	mta_receiver, _ := mta_ot.NewReceiver(baseOtSenderOutput, curve, uniqueSessionId)
+
+	{
+		alice := sign_offline.NewAlice[*kos.Round1Output, *mta_ot.Round2Output](curve, alice.Output(), mta_sender)
+		bob := sign_offline.NewBob[*kos.Round1Output, *mta_ot.Round2Output](curve, bob.Output(), mta_receiver)
+
+		commitment, a := bob.Step1()
+		q1, r1, cc, proof, bb := alice.Step2(commitment, a)
+		proof = bob.Step3(q1, r1, cc, proof, bb)
+		alice.Step4(proof)
+
+		aliceView := alice.Output()
+		bobView := bob.Output()
+
+		{
+			alice := NewAlice(curve, aliceView)
+			bob := NewBob(curve, bobView)
+			m := [100]byte{}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				s2 := bob.Step1(m[:])
+				alice.Step2(m[:], s2)
+			}
+		}
+	}
+}
+
+func BenchmarkOnlineOTStep1(b *testing.B) {
+	curve := curves.K256()
+
+	alice := dkg.NewAlice(curve)
+	bob := dkg.NewBob(curve)
+
+	commitment, _ := alice.Step1()
+	bobProof, _ := bob.Step2(commitment)
+	aliceProof, _ := alice.Step3(bobProof)
+	_ = bob.Step4(aliceProof)
+
+	uniqueSessionId := [simplest.DigestSize]byte{}
+
+	baseOtSenderOutput, baseOtReceiverOutput, _ := ottest.RunSimplestOT(curve, kos.Kappa, uniqueSessionId)
+
+	mta_sender, _ := mta_ot.NewSender(baseOtReceiverOutput, curve, uniqueSessionId)
+	mta_receiver, _ := mta_ot.NewReceiver(baseOtSenderOutput, curve, uniqueSessionId)
+
+	{
+		alice := sign_offline.NewAlice[*kos.Round1Output, *mta_ot.Round2Output](curve, alice.Output(), mta_sender)
+		bob := sign_offline.NewBob[*kos.Round1Output, *mta_ot.Round2Output](curve, bob.Output(), mta_receiver)
+
+		commitment, a := bob.Step1()
+		q1, r1, cc, proof, bb := alice.Step2(commitment, a)
+		proof = bob.Step3(q1, r1, cc, proof, bb)
+		alice.Step4(proof)
+
+		bobView := bob.Output()
+
+		{
+			bob := NewBob(curve, bobView)
+			m := [100]byte{}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				bob.Step1(m[:])
+			}
+		}
+	}
+}
+
+func BenchmarkOnlineOTStep2(b *testing.B) {
+	curve := curves.K256()
+
+	alice := dkg.NewAlice(curve)
+	bob := dkg.NewBob(curve)
+
+	commitment, _ := alice.Step1()
+	bobProof, _ := bob.Step2(commitment)
+	aliceProof, _ := alice.Step3(bobProof)
+	_ = bob.Step4(aliceProof)
+
+	uniqueSessionId := [simplest.DigestSize]byte{}
+
+	baseOtSenderOutput, baseOtReceiverOutput, _ := ottest.RunSimplestOT(curve, kos.Kappa, uniqueSessionId)
+
+	mta_sender, _ := mta_ot.NewSender(baseOtReceiverOutput, curve, uniqueSessionId)
+	mta_receiver, _ := mta_ot.NewReceiver(baseOtSenderOutput, curve, uniqueSessionId)
+
+	{
+		alice := sign_offline.NewAlice[*kos.Round1Output, *mta_ot.Round2Output](curve, alice.Output(), mta_sender)
+		bob := sign_offline.NewBob[*kos.Round1Output, *mta_ot.Round2Output](curve, bob.Output(), mta_receiver)
+
+		commitment, a := bob.Step1()
+		q1, r1, cc, proof, bb := alice.Step2(commitment, a)
+		proof = bob.Step3(q1, r1, cc, proof, bb)
+		alice.Step4(proof)
+
+		aliceView := alice.Output()
+		bobView := bob.Output()
+
+		{
+			alice := NewAlice(curve, aliceView)
+			bob := NewBob(curve, bobView)
+			m := [100]byte{}
+			s2 := bob.Step1(m[:])
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				alice.Step2(m[:], s2)
+			}
+		}
+	}
+}
+
+var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+
 func TestOnlinePaillier(t *testing.T) {
 	curve := curves.K256()
 
@@ -94,8 +228,8 @@ func TestOnlinePaillier(t *testing.T) {
 	require.Equal(t, aliceView.PkPeer, bobView.Pk)
 	require.Equal(t, aliceView.PkJoint, bobView.PkJoint)
 
-	sender := mta_paillier.NewSender(curve)
-	receiver := mta_paillier.NewReceiver(curve)
+	sender := mta_paillier.NewSender(curve, p, q)
+	receiver := mta_paillier.NewReceiver(curve, p0, q0)
 
 	setup1Statement, setup1Proof := receiver.SetupInit()
 	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
@@ -119,6 +253,141 @@ func TestOnlinePaillier(t *testing.T) {
 			m := [100]byte{}
 			s2 := bob.Step1(m[:])
 			alice.Step2(m[:], s2)
+		}
+	}
+}
+
+func BenchmarkOnlinePaillier(b *testing.B) {
+	curve := curves.K256()
+
+	alice := dkg.NewAlice(curve)
+	bob := dkg.NewBob(curve)
+
+	commitment, _ := alice.Step1()
+	bobProof, _ := bob.Step2(commitment)
+	aliceProof, _ := alice.Step3(bobProof)
+	_ = bob.Step4(aliceProof)
+
+	aliceView := alice.Output()
+	bobView := bob.Output()
+
+	sender := mta_paillier.NewSender(curve, p, q)
+	receiver := mta_paillier.NewReceiver(curve, p0, q0)
+
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
+
+	{
+		alice := sign_offline.NewAlice[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, aliceView, sender)
+		bob := sign_offline.NewBob[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, bobView, receiver)
+
+		commitment, a := bob.Step1()
+		q1, r1, cc, proof, bb := alice.Step2(commitment, a)
+		proof = bob.Step3(q1, r1, cc, proof, bb)
+		alice.Step4(proof)
+
+		aliceView := alice.Output()
+		bobView := bob.Output()
+
+		{
+			alice := NewAlice(curve, aliceView)
+			bob := NewBob(curve, bobView)
+			m := [100]byte{}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				s2 := bob.Step1(m[:])
+				alice.Step2(m[:], s2)
+			}
+		}
+	}
+}
+
+func BenchmarkOnlinePaillierStep1(b *testing.B) {
+	curve := curves.K256()
+
+	alice := dkg.NewAlice(curve)
+	bob := dkg.NewBob(curve)
+
+	commitment, _ := alice.Step1()
+	bobProof, _ := bob.Step2(commitment)
+	aliceProof, _ := alice.Step3(bobProof)
+	_ = bob.Step4(aliceProof)
+
+	aliceView := alice.Output()
+	bobView := bob.Output()
+
+	sender := mta_paillier.NewSender(curve, p, q)
+	receiver := mta_paillier.NewReceiver(curve, p0, q0)
+
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
+
+	{
+		alice := sign_offline.NewAlice[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, aliceView, sender)
+		bob := sign_offline.NewBob[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, bobView, receiver)
+
+		commitment, a := bob.Step1()
+		q1, r1, cc, proof, bb := alice.Step2(commitment, a)
+		proof = bob.Step3(q1, r1, cc, proof, bb)
+		alice.Step4(proof)
+
+		bobView := bob.Output()
+
+		{
+			bob := NewBob(curve, bobView)
+			m := [100]byte{}
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				bob.Step1(m[:])
+			}
+		}
+	}
+}
+
+func BenchmarkOnlinePaillierStep2(b *testing.B) {
+	curve := curves.K256()
+
+	alice := dkg.NewAlice(curve)
+	bob := dkg.NewBob(curve)
+
+	commitment, _ := alice.Step1()
+	bobProof, _ := bob.Step2(commitment)
+	aliceProof, _ := alice.Step3(bobProof)
+	_ = bob.Step4(aliceProof)
+
+	aliceView := alice.Output()
+	bobView := bob.Output()
+
+	sender := mta_paillier.NewSender(curve, p, q)
+	receiver := mta_paillier.NewReceiver(curve, p0, q0)
+
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
+
+	{
+		alice := sign_offline.NewAlice[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, aliceView, sender)
+		bob := sign_offline.NewBob[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curve, bobView, receiver)
+
+		commitment, a := bob.Step1()
+		q1, r1, cc, proof, bb := alice.Step2(commitment, a)
+		proof = bob.Step3(q1, r1, cc, proof, bb)
+		alice.Step4(proof)
+
+		aliceView := alice.Output()
+		bobView := bob.Output()
+
+		{
+			alice := NewAlice(curve, aliceView)
+			bob := NewBob(curve, bobView)
+			m := [100]byte{}
+			s2 := bob.Step1(m[:])
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				alice.Step2(m[:], s2)
+			}
 		}
 	}
 }

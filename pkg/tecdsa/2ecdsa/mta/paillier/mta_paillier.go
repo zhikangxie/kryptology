@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"math/big"
 
-	"github.com/coinbase/kryptology/pkg/core"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/paillier"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk"
@@ -30,12 +29,17 @@ type Sender struct {
 	tx    *merlin.Transcript
 	pp    *Param
 	curve *curves.Curve
+	p *big.Int
+	q *big.Int
+	sk    *paillier.SecretKey
 }
 
 type Receiver struct {
 	tx    *merlin.Transcript
 	pp    *Param
 	curve *curves.Curve
+	p *big.Int
+	q *big.Int
 	sk    *paillier.SecretKey
 	c_B   *big.Int
 }
@@ -62,33 +66,38 @@ type Round2Output struct {
 	proof *zk_r_affran.Proof
 }
 
-func NewSender(curve *curves.Curve) *Sender {
+func NewSender(curve *curves.Curve, p *big.Int, q *big.Int) *Sender {
 	c, _ := curve.ToEllipticCurve()
+	sk, _ := paillier.NewSecretKey(p, q)
 	return &Sender{
 		tx: merlin.NewTranscript("MTA-Paillier"),
 		pp: &Param{
 			q: c.Params().N,
 		},
 		curve: curve,
+		p: p,
+		q: q,
+		sk: sk,
 	}
 }
 
-func NewReceiver(curve *curves.Curve) *Receiver {
+func NewReceiver(curve *curves.Curve, p *big.Int, q *big.Int) *Receiver {
 	c, _ := curve.ToEllipticCurve()
+	sk, _ := paillier.NewSecretKey(p, q)
 	return &Receiver{
 		tx: merlin.NewTranscript("MTA-Paillier"),
 		pp: &Param{
 			q: c.Params().N,
 		},
 		curve: curve,
+		p: p,
+		q: q,
+		sk: sk,
 	}
 }
 
 func (receiver *Receiver) SetupInit() (SetupStatement, SetupProof) {
 	// P2 generates N, g, h
-	p, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
-	q, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
-	receiver.sk, _ = paillier.NewSecretKey(p, q)
 	receiver.pp.N = receiver.sk.N
 	h_sqrt, _ := rand.Int(rand.Reader, receiver.pp.N)
 	receiver.pp.h = new(big.Int).Mod(new(big.Int).Mul(h_sqrt, h_sqrt), receiver.pp.N)
@@ -97,7 +106,7 @@ func (receiver *Receiver) SetupInit() (SetupStatement, SetupProof) {
 
 	// P2 computes the corresponding proofs
 	input_r_p := receiver.pp.N
-	pi_r_p := zk_r_p.Prove(receiver.tx, zk_r_p.NewWitness(p, q), input_r_p)
+	pi_r_p := zk_r_p.Prove(receiver.tx, zk_r_p.NewWitness(receiver.p, receiver.q), input_r_p)
 	input_qr := receiver.pp.h
 	pi_qr := zk_qr.Prove(receiver.tx, zk_qr.NewAgreed(receiver.pp.N), zk_qr.NewWitness(h_sqrt), input_qr)
 	input_qrdl := receiver.pp.g
@@ -122,10 +131,7 @@ func (sender *Sender) SetupUpdate(statement SetupStatement, proof SetupProof) (S
 	sender.pp.g = statement.qrdl
 
 	// P1 generates N0, g0, h0
-	p, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
-	q, _ := core.GenerateSafePrime(paillier.PaillierPrimeBits)
-	sk, _ := paillier.NewSecretKey(p, q)
-	sender.pp.N0 = sk.N
+	sender.pp.N0 = sender.sk.N
 	h0_sqrt, _ := rand.Int(rand.Reader, sender.pp.N0)
 	sender.pp.h0 = new(big.Int).Mod(new(big.Int).Mul(h0_sqrt, h0_sqrt), sender.pp.N0)
 	alpha0, _ := rand.Int(rand.Reader, sender.pp.N0)
@@ -133,7 +139,7 @@ func (sender *Sender) SetupUpdate(statement SetupStatement, proof SetupProof) (S
 
 	// P1 computes the corresponding proofs
 	input_r_p := sender.pp.N0
-	pi_r_p := zk_r_p.Prove(sender.tx, zk_r_p.NewWitness(p, q), input_r_p)
+	pi_r_p := zk_r_p.Prove(sender.tx, zk_r_p.NewWitness(sender.p, sender.q), input_r_p)
 	input_qr := sender.pp.h0
 	pi_qr := zk_qr.Prove(sender.tx, zk_qr.NewAgreed(sender.pp.N0), zk_qr.NewWitness(h0_sqrt), input_qr)
 	input_qrdl := sender.pp.g0
