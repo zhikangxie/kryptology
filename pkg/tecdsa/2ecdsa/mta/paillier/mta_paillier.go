@@ -183,15 +183,14 @@ func (sender *Sender) Update(a curves.Scalar, round1Output *Round1Output) (curve
 		panic("MtA Update: R_PwR")
 	}
 
-	k := new(big.Int).Lsh(new(big.Int).Mul(sender.pp.q, sender.pp.q), zk.T+zk.L+zk.S)
-	alpha_prime, _ := rand.Int(rand.Reader, k)
+	pp_r_affran := zk_r_affran.NewAgreed(sender.pp.q, sender.pp.N, sender.pp.g, sender.pp.h, sender.pp.N, round1Output.c_B)
+
+	alpha_prime, _ := rand.Int(rand.Reader, pp_r_affran.K)
 	alpha, _ := sender.curve.Scalar.SetBigInt(new(big.Int).Mod(alpha_prime, sender.pp.q))
 	alpha = alpha.Neg()
 
 	c := zk.Commit(round1Output.c_B, pp_r_pwr.N_plus_1, big.NewInt(1), new(big.Int).Lsh(sender.pp.q, zk.T+zk.L), pp_r_pwr.NN)
 	c_A := zk.Commit(c, pp_r_pwr.N_plus_1, a.BigInt(), alpha_prime, pp_r_pwr.NN)
-
-	pp_r_affran := zk_r_affran.NewAgreed(sender.pp.q, sender.pp.N, sender.pp.g, sender.pp.h, sender.pp.N, round1Output.c_B)
 
 	input_r_affran := c_A
 	pi_r_affran := zk_r_affran.Prove(sender.tx, pp_r_affran, zk_r_affran.NewWitness(a.BigInt(), alpha_prime), input_r_affran)
