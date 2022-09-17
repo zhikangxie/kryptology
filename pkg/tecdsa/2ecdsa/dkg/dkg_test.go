@@ -6,7 +6,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coinbase/kryptology/pkg/core"
 	"github.com/coinbase/kryptology/pkg/core/curves"
+	"github.com/coinbase/kryptology/pkg/ot/base/simplest"
+	"github.com/coinbase/kryptology/pkg/ot/extension/kos"
+	"github.com/coinbase/kryptology/pkg/ot/ottest"
+	"github.com/coinbase/kryptology/pkg/paillier"
+	mta_paillier "github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier"
 )
 
 func TestDkg(t *testing.T) {
@@ -41,7 +47,22 @@ func TestDkg(t *testing.T) {
 	}
 }
 
-func BenchmarkDkg(b *testing.B) {
+func BenchmarkDkgOT(b *testing.B) {
+	curve := curves.K256()
+	alice := NewAlice(curve)
+	bob := NewBob(curve)
+	uniqueSessionId := [simplest.DigestSize]byte{}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		commitment, _ := alice.Step1()
+		bobProof, _ := bob.Step2(commitment)
+		aliceProof, _ := alice.Step3(bobProof)
+		bob.Step4(aliceProof)
+		_, _, _ = ottest.RunSimplestOT(curve, kos.Kappa, uniqueSessionId)
+	}
+}
+
+func BenchmarkDkgPaillier(b *testing.B) {
 	curve := curves.K256()
 	alice := NewAlice(curve)
 	bob := NewBob(curve)
@@ -51,6 +72,15 @@ func BenchmarkDkg(b *testing.B) {
 		bobProof, _ := bob.Step2(commitment)
 		aliceProof, _ := alice.Step3(bobProof)
 		bob.Step4(aliceProof)
+		var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+		var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+		var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+		var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+		sender := mta_paillier.NewSender(curve, p, q)
+		receiver := mta_paillier.NewReceiver(curve, p0, q0)
+		setup1Statement, setup1Proof := receiver.SetupInit()
+		setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+		receiver.SetupDone(setup2Statement, setup2Proof)
 	}
 }
 
