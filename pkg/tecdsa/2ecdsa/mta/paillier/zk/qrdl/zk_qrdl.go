@@ -1,10 +1,10 @@
 package zk_qrdl
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math/big"
 
-	"github.com/coinbase/kryptology/pkg/core"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier/zk"
 	"github.com/gtank/merlin"
 )
@@ -39,12 +39,12 @@ func Prove(tx *merlin.Transcript, pp *Agreed, witness *Witness, g *Statement) *P
 	tx.AppendMessage([]byte("g"), g.Bytes()) // Strong Fiat-Shamir
 
 	// Step 1: Commit
-	n := new(big.Int).Lsh(pp.N, zk.S-1)
+	n := new(big.Int).Lsh(pp.N, zk.S)
 	beta := [zk.T]*big.Int{}
 	a := [zk.T]*big.Int{}
 	for i := 0; i < zk.T; i++ {
-		b, _ := core.Rand(n)
-		beta[i] = new(big.Int).Lsh(b, 1)             // beta <$- [1, 2^s * N0) and beta is even
+		b, _ := rand.Int(rand.Reader, n)             // b <$- [0, 2^s * N0)
+		beta[i] = new(big.Int).Add(b, big.NewInt(1)) // beta <$- [1, 2^s * N0]
 		a[i] = new(big.Int).Exp(pp.h, beta[i], pp.N) // a = h^beta % N0
 		tx.AppendMessage([]byte(fmt.Sprintf("a[%d]", i)), a[i].Bytes())
 	}

@@ -19,7 +19,7 @@ type Agreed struct {
 
 	NN       *big.Int
 	N_plus_1 *big.Int
-	k        *big.Int
+	K        *big.Int
 }
 
 // c_A
@@ -60,11 +60,11 @@ func Prove(tx *merlin.Transcript, pp *Agreed, ws *Witness, c_A *Statement) *Proo
 
 	// Step 1: Commit
 	b, _ := rand.Int(rand.Reader, new(big.Int).Lsh(pp.q, zk.T+zk.L))
-	beta, _ := rand.Int(rand.Reader, new(big.Int).Lsh(pp.k, zk.T+zk.L))
-	rho1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(pp.N, zk.T+zk.L))
-	rho2, _ := rand.Int(rand.Reader, new(big.Int).Lsh(pp.N, zk.T+zk.L))
-	rho3, _ := rand.Int(rand.Reader, pp.N)
-	rho4, _ := rand.Int(rand.Reader, pp.N)
+	beta, _ := rand.Int(rand.Reader, new(big.Int).Lsh(pp.K, zk.T+zk.L))
+	rho1, _ := rand.Int(rand.Reader, new(big.Int).Lsh(pp.N0, zk.T+zk.L))
+	rho2, _ := rand.Int(rand.Reader, new(big.Int).Lsh(pp.N0, zk.T+zk.L))
+	rho3, _ := rand.Int(rand.Reader, pp.N0)
+	rho4, _ := rand.Int(rand.Reader, pp.N0)
 	A := zk.Commit(pp.c, pp.N_plus_1, b, beta, pp.NN)
 	B1 := zk.Commit(pp.g, pp.h, b, rho1, pp.N0)
 	B2 := zk.Commit(pp.g, pp.h, beta, rho2, pp.N0)
@@ -107,10 +107,10 @@ func Verify(tx *merlin.Transcript, pp *Agreed, c_A *Statement, proof *Proof) boo
 	if proof.z1.Cmp(new(big.Int).Lsh(pp.q, zk.T)) == -1 {
 		return false
 	}
-	if proof.z2.Cmp(new(big.Int).Lsh(pp.k, zk.T+zk.L)) == 1 {
+	if proof.z2.Cmp(new(big.Int).Lsh(pp.K, zk.T+zk.L)) == 1 {
 		return false
 	}
-	if proof.z2.Cmp(new(big.Int).Lsh(pp.k, zk.T)) == -1 {
+	if proof.z2.Cmp(new(big.Int).Lsh(pp.K, zk.T)) == -1 {
 		return false
 	}
 	if zk.Commit(pp.c, pp.N_plus_1, proof.z1, proof.z2, pp.NN).Cmp(zk.Commit(proof.A, c_A, big.NewInt(1), e, pp.NN)) != 0 {
