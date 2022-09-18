@@ -72,10 +72,8 @@ func BenchmarkDkgPaillier(b *testing.B) {
 		bobProof, _ := bob.Step2(commitment)
 		aliceProof, _ := alice.Step3(bobProof)
 		bob.Step4(aliceProof)
-		var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-		var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-		var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-		var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+		primes, _ := core.GenerateSafePrimes(paillier.PaillierPrimeBits, 4)
+		p, q, p0, q0 := <-primes, <-primes, <-primes, <-primes
 		sender := mta_paillier.NewSender(curve, p, q)
 		receiver := mta_paillier.NewReceiver(curve, p0, q0)
 		setup1Statement, setup1Proof := receiver.SetupInit()
