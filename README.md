@@ -1,6 +1,6 @@
 We implement the efficient online-friendly two-party ECDSA signature of https://eprint.iacr.org/2022/318.pdf based on the library of Coinbase. And our contribution is in this subdirectory [pkg/tecdsa/2ecdsa](pkg/tecdsa/2ecdsa).
 
-## Direct Deployent 
+## Direct Deployment 
 
 ### Specifications
 
