@@ -8,9 +8,11 @@ package core
 
 import (
 	"errors"
-	"math/big"
-
+	"github.com/joho/godotenv"
 	"github.com/rainycape/dl"
+	"math/big"
+	"os"
+	"regexp"
 )
 
 var bnNew func() uintptr
@@ -18,8 +20,26 @@ var bnFree func(uintptr)
 var bnGenPrime func(uintptr, int, int, uintptr, uintptr, uintptr) int
 var bnToHex func(uintptr) string
 
+const projectDirName = "kryptology" // change to relevant project name
+
 func linkOpenssl() (*dl.DL, error) {
-	openssl, err := dl.Open("libssl", 0)
+	projectName := regexp.MustCompile(`^(.*` + projectDirName + `)`)
+	currentWorkDirectory, _ := os.Getwd()
+	rootPath := projectName.Find([]byte(currentWorkDirectory))
+
+	err := godotenv.Load(string(rootPath) + `/.env`)
+
+	if err != nil {
+		return nil, err
+	}
+
+	path := os.Getenv("LIBSSL_PATH")
+
+	if path == "" {
+		path = "libssl"
+	}
+
+	openssl, err := dl.Open(path, 0)
 	if err != nil {
 		return nil, err
 	}
