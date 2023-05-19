@@ -44,6 +44,6 @@ func JointPkCompProve(curve *curves.Curve, sk curves.Scalar, formerJointPk curve
 	return jointPkProof, uniqueSessionId[:], err
 }
 
-func JointPkVerify(curve *curves.Curve, basePoint2 curves.Point, proof *chaumpedersen.Proof, uniqueSessionId []byte) error {
-	return chaumpedersen.Verify(proof, curve, nil, basePoint2, uniqueSessionId)
+func JointPkVerify(curve *curves.Curve, formerJointPk curves.Point, proof *chaumpedersen.Proof, uniqueSessionId []byte) error {
+	return chaumpedersen.Verify(proof, curve, nil, formerJointPk, uniqueSessionId)
 }
