@@ -25,14 +25,20 @@ type Proof struct {
 	Statement2 curves.Point
 }
 
-func NewProver(curve *curves.Curve, basepoint1 curves.Point, basepoint2 curves.Point, uniqueSessionId []byte) (*Prover, error) {
-	if basepoint1 == nil || basepoint2 == nil {
-		return nil, fmt.Errorf("base point missing")
+// we allow basePoint1 to be nil, in which case it is auto-assigned to be the group's default generator
+// we do NOT allow basePoint2 to be nil
+
+func NewProver(curve *curves.Curve, basePoint1 curves.Point, basePoint2 curves.Point, uniqueSessionId []byte) (*Prover, error) {
+	if basePoint1 == nil {
+		basePoint1 = curve.NewGeneratorPoint()
+	}
+	if basePoint2 == nil {
+		return nil, fmt.Errorf("base point 2 missing")
 	}
 	return &Prover{
 		curve:           curve,
-		basePoint1:      basepoint1,
-		basePoint2:      basepoint2,
+		basePoint1:      basePoint1,
+		basePoint2:      basePoint2,
 		uniqueSessionId: uniqueSessionId,
 	}, nil
 }
@@ -82,14 +88,20 @@ func (p *Prover) Prove(x curves.Scalar) (*Proof, error) {
 	return result, nil
 }
 
-func Verify(proof *Proof, curve *curves.Curve, basepoint1 curves.Point, basepoint2 curves.Point, uniqueSessionId []byte) error {
-	if basepoint1 == nil || basepoint2 == nil {
-		return fmt.Errorf("base point missing")
+// we allow basePoint1 to be nil, in which case it is auto-assigned to be the group's default generator
+// we do NOT allow basePoint2 to be nil
+
+func Verify(proof *Proof, curve *curves.Curve, basePoint1 curves.Point, basePoint2 curves.Point, uniqueSessionId []byte) error {
+	if basePoint1 == nil {
+		basePoint1 = curve.NewGeneratorPoint()
+	}
+	if basePoint2 == nil {
+		return fmt.Errorf("base point 2 missing")
 	}
 	var err error
 
-	sBp1 := basepoint1.Mul(proof.S)
-	sBp2 := basepoint2.Mul(proof.S)
+	sBp1 := basePoint1.Mul(proof.S)
+	sBp2 := basePoint2.Mul(proof.S)
 
 	negCSta1 := proof.Statement1.Mul(proof.C.Neg())
 	negCSta2 := proof.Statement2.Mul(proof.C.Neg())
@@ -101,10 +113,10 @@ func Verify(proof *Proof, curve *curves.Curve, basepoint1 curves.Point, basepoin
 	if _, err = hash.Write(uniqueSessionId); err != nil {
 		return errors.Wrap(err, "writing salt to hash in chaum-pedersen verify")
 	}
-	if _, err = hash.Write(basepoint1.ToAffineCompressed()); err != nil {
+	if _, err = hash.Write(basePoint1.ToAffineCompressed()); err != nil {
 		return errors.Wrap(err, "writing basePoint1 to hash in chaum-pedersen verify")
 	}
-	if _, err = hash.Write(basepoint2.ToAffineCompressed()); err != nil {
+	if _, err = hash.Write(basePoint2.ToAffineCompressed()); err != nil {
 		return errors.Wrap(err, "writing basePoint2 to hash in chaum-pedersen verify")
 	}
 	if _, err = hash.Write(proof.Statement1.ToAffineCompressed()); err != nil {
