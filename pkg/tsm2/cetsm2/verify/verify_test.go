@@ -1,9 +1,10 @@
-package ds
+package verify
 
 import (
 	"fmt"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/tsm2/cetsm2/dkg"
+	"github.com/coinbase/kryptology/pkg/tsm2/cetsm2/ds"
 	"github.com/coinbase/kryptology/pkg/zkp/chaumpedersen"
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
 	"github.com/stretchr/testify/require"
@@ -77,10 +78,6 @@ func TestDSOverMultipleCurves(t *testing.T) {
 			require.NoError(t, err, fmt.Sprintf("failed in curve %d when verifying the joint pk proof of party %d", i, id))
 		}
 
-		/*******************************
-		BACK TO THE PURE DS VERIFICATION
-		*******************************/
-
 		// generate nonces and proofs
 		var basePoint curves.Point
 		for id := 1; id <= n; id++ {
@@ -91,7 +88,7 @@ func TestDSOverMultipleCurves(t *testing.T) {
 			} else {
 				basePoint = jointPkProofs[id-2].Statement2
 			}
-			k, nonceProof, commitment, sessionId, err := NonceComProve(curve, basePoint)
+			k, nonceProof, commitment, sessionId, err := ds.NonceComProve(curve, basePoint)
 			require.NoError(t, err, fmt.Sprintf("faied in curve %d when party %d generating nonce", i, id))
 			nonces[id-1] = k
 			nonceProofs[id-1] = nonceProof
@@ -108,7 +105,7 @@ func TestDSOverMultipleCurves(t *testing.T) {
 			} else {
 				basePoint = jointPkProofs[id-2].Statement2
 			}
-			err := NonceDeComVerify(curve, basePoint, nonceProofs[id-1], nonceCommitments[id-1], nonceProofSessionIds[id-1])
+			err := ds.NonceDeComVerify(curve, basePoint, nonceProofs[id-1], nonceCommitments[id-1], nonceProofSessionIds[id-1])
 			require.NoError(t, err, fmt.Sprintf("failed in curve %d when verify the de-commitment and nonce proof for party %d", i, id))
 		}
 
@@ -117,7 +114,8 @@ func TestDSOverMultipleCurves(t *testing.T) {
 		for id := 2; id <= n; id++ {
 			R = R.Add(nonceProofs[id-1].Statement)
 		}
-		r := RPartComp(curve, R, message)
+
+		r := ds.RPartComp(curve, R, message)
 
 		// compute s-part of signature
 		s := r
@@ -127,10 +125,16 @@ func TestDSOverMultipleCurves(t *testing.T) {
 				RId = RId.Add(nonceProofs[j-1].Statement)
 			}
 			if id == 1 {
-				s = SPartComp(curve, r, s, sks[id-1], nonces[id-1], nil, RId, pkProofs[0].Statement)
+				s = ds.SPartComp(curve, r, s, sks[id-1], nonces[id-1], nil, RId, pkProofs[0].Statement)
 			} else {
-				s = SPartComp(curve, r, s, sks[id-1], nonces[id-1], nil, RId, jointPkProofs[id-1].Statement2)
+				s = ds.SPartComp(curve, r, s, sks[id-1], nonces[id-1], nil, RId, jointPkProofs[id-1].Statement2)
 			}
 		}
+		/*******************************************
+		BACK TO THE PURE VERIFICATION ALGORITHM TEST
+		*******************************************/
+
+		err := Verify(curve, nil, jointPkProofs[n-1].Statement2, message, r, s)
+		require.NoError(t, err, fmt.Sprintf("failed in curve %d when verify the signature", i))
 	}
 }

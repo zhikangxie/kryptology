@@ -44,6 +44,10 @@ func RPartComp(curve *curves.Curve, R curves.Point, message []byte) curves.Scala
 
 func SPartComp(curve *curves.Curve, r curves.Scalar, formerS curves.Scalar, sk curves.Scalar, k curves.Scalar,
 	basePoint curves.Point, currentR curves.Point, currentJointPk curves.Point) curves.Scalar {
+	if basePoint == nil {
+		basePoint = curve.NewGeneratorPoint()
+	}
+
 	skInvert, err := sk.Invert()
 	if err != nil {
 		panic("when computing the invert of sk")
