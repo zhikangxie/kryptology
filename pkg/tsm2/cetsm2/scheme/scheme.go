@@ -206,7 +206,7 @@ func (scheme *Scheme) DSStep3A(r curves.Scalar) curves.Scalar {
 			s = ds.SPartComp(scheme.curve, r, s, scheme.sks[id-1], scheme.nonce[id-1], nil, RId, scheme.jointPkProofs[id-1].Statement2)
 		}
 	}
-	return r
+	return s
 }
 
 func (scheme *Scheme) DSStep3B(r curves.Scalar, s curves.Scalar) error {
