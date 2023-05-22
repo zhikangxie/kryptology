@@ -22,15 +22,15 @@ func TestDSOverMultipleCurves(t *testing.T) {
 	var sks [n]curves.Scalar
 	var pkProofs [n]*schnorr.Proof
 	var pkCommitments [n]schnorr.Commitment
-	var pkProofSessionIds [n]*[]byte
+	var pkProofSessionIds [n]schnorr.SessionId
 
 	var jointPkProofs [n]*chaumpedersen.Proof
-	var jointPkProofSessionIds [n]*[]byte
+	var jointPkProofSessionIds [n]chaumpedersen.SessionId
 
 	var nonces [n]curves.Scalar
 	var nonceProofs [n]*schnorr.Proof
 	var nonceCommitments [n]schnorr.Commitment
-	var nonceProofSessionIds [n]*[]byte
+	var nonceProofSessionIds [n]schnorr.SessionId
 
 	str := "test message"
 	message := []byte(str)

@@ -12,7 +12,7 @@ import (
 
 // pk is stored in the Statement of pkProof
 
-func PkComProve(curve *curves.Curve) (curves.Scalar, *schnorr.Proof, schnorr.Commitment, *[]byte, error) {
+func PkComProve(curve *curves.Curve) (curves.Scalar, *schnorr.Proof, schnorr.Commitment, []byte, error) {
 	sk := curve.Scalar.Random(rand.Reader)
 
 	uniqueSessionId := [simplest.DigestSize]byte{}
@@ -20,13 +20,13 @@ func PkComProve(curve *curves.Curve) (curves.Scalar, *schnorr.Proof, schnorr.Com
 	pkProver := schnorr.NewProver(curve, nil, sessionId)
 	pkProof, commitment, err := pkProver.ProveCommit(sk)
 
-	return sk, pkProof, commitment, &sessionId, err
+	return sk, pkProof, commitment, sessionId, err
 }
 
 // functions for step 2
 
-func PkDeComVerify(curve *curves.Curve, proof *schnorr.Proof, commitment schnorr.Commitment, sessionId *[]byte) error {
-	return schnorr.DecommitVerify(proof, commitment, curve, nil, *sessionId)
+func PkDeComVerify(curve *curves.Curve, proof *schnorr.Proof, commitment schnorr.Commitment, sessionId []byte) error {
+	return schnorr.DecommitVerify(proof, commitment, curve, nil, sessionId)
 }
 
 // functions for step 3
@@ -34,19 +34,19 @@ func PkDeComVerify(curve *curves.Curve, proof *schnorr.Proof, commitment schnorr
 // currentJointPk is stored in the Statement2 of jointPkProof
 // for the last party, currentJointPk is the calculated joint pk for all parties
 
-func JointPkCompProve(curve *curves.Curve, sk curves.Scalar, formerJointPk curves.Point) (*chaumpedersen.Proof, *[]byte, error) {
+func JointPkCompProve(curve *curves.Curve, sk curves.Scalar, formerJointPk curves.Point) (*chaumpedersen.Proof, []byte, error) {
 	uniqueSessionId := [simplest.DigestSize]byte{}
 	sessionId := uniqueSessionId[:]
 	jointPkProver, err := chaumpedersen.NewProver(curve, nil, formerJointPk, sessionId)
 	if err != nil {
-		return nil, &sessionId, err
+		return nil, sessionId, err
 	}
 
 	jointPkProof, err := jointPkProver.Prove(sk)
 
-	return jointPkProof, &sessionId, err
+	return jointPkProof, sessionId, err
 }
 
-func JointPkVerify(curve *curves.Curve, formerJointPk curves.Point, proof *chaumpedersen.Proof, sessionId *[]byte) error {
-	return chaumpedersen.Verify(proof, curve, nil, formerJointPk, *sessionId)
+func JointPkVerify(curve *curves.Curve, formerJointPk curves.Point, proof *chaumpedersen.Proof, sessionId []byte) error {
+	return chaumpedersen.Verify(proof, curve, nil, formerJointPk, sessionId)
 }

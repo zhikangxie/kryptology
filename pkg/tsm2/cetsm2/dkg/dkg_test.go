@@ -20,10 +20,10 @@ func TestDKGOverMultipleCurves(t *testing.T) {
 	var sks [n]curves.Scalar
 	var pkProofs [n]*schnorr.Proof
 	var commitments [n]schnorr.Commitment
-	var pkProofSessionIds [n]*[]byte
+	var pkProofSessionIds [n]schnorr.SessionId
 
 	var jointPkProofs [n]*chaumpedersen.Proof
-	var jointPkProofSessionIds [n]*[]byte
+	var jointPkProofSessionIds [n]chaumpedersen.SessionId
 
 	for i, curve := range curveInstances {
 		// generate pks and proofs
@@ -78,10 +78,10 @@ func BenchmarkDKG(b *testing.B) {
 	var sks [n]curves.Scalar
 	var pkProofs [n]*schnorr.Proof
 	var commitments [n]schnorr.Commitment
-	var pkProofSessionIds [n]*[]byte
+	var pkProofSessionIds [n]schnorr.SessionId
 
 	var jointPkProofs [n]*chaumpedersen.Proof
-	var jointPkProofSessionIds [n]*[]byte
+	var jointPkProofSessionIds [n]chaumpedersen.SessionId
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

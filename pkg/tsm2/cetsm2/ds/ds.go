@@ -11,7 +11,7 @@ import (
 // functions for step 1
 // R_i is stored in nonceProof.Statement
 
-func NonceComProve(curve *curves.Curve, basePoint curves.Point) (curves.Scalar, *schnorr.Proof, schnorr.Commitment, *[]byte, error) {
+func NonceComProve(curve *curves.Curve, basePoint curves.Point) (curves.Scalar, *schnorr.Proof, schnorr.Commitment, []byte, error) {
 	k := curve.Scalar.Random(rand.Reader)
 
 	uniqueSessionId := [simplest.DigestSize]byte{}
@@ -19,13 +19,13 @@ func NonceComProve(curve *curves.Curve, basePoint curves.Point) (curves.Scalar, 
 	nonceProver := schnorr.NewProver(curve, basePoint, sessionId)
 	nonceProof, commitment, err := nonceProver.ProveCommit(k)
 
-	return k, nonceProof, commitment, &sessionId, err
+	return k, nonceProof, commitment, sessionId, err
 }
 
 // functions for step 2
 
-func NonceDeComVerify(curve *curves.Curve, basePoint curves.Point, proof *schnorr.Proof, commitment schnorr.Commitment, sessionId *[]byte) error {
-	return schnorr.DecommitVerify(proof, commitment, curve, basePoint, *sessionId)
+func NonceDeComVerify(curve *curves.Curve, basePoint curves.Point, proof *schnorr.Proof, commitment schnorr.Commitment, sessionId []byte) error {
+	return schnorr.DecommitVerify(proof, commitment, curve, basePoint, sessionId)
 }
 
 func RPartComp(curve *curves.Curve, R curves.Point, message []byte) curves.Scalar {

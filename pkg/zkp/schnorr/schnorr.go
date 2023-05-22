@@ -20,6 +20,7 @@ import (
 )
 
 type Commitment = []byte
+type SessionId = []byte
 
 type Prover struct {
 	curve           *curves.Curve
