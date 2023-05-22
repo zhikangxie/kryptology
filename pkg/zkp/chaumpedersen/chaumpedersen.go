@@ -130,3 +130,46 @@ func Verify(proof *Proof, curve *curves.Curve, basePoint1 curves.Point, basePoin
 	}
 	return nil
 }
+
+func (p *Prover) ComProve(x curves.Scalar) (*Proof, Commitment, error) {
+	proof, err := p.Prove(x)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	hash := sha3.New256()
+	if _, err = hash.Write(proof.C.Bytes()); err != nil {
+		return nil, nil, err
+	}
+	if _, err = hash.Write(proof.S.Bytes()); err != nil {
+		return nil, nil, err
+	}
+	if _, err = hash.Write(proof.Statement1.ToAffineCompressed()); err != nil {
+		return nil, nil, err
+	}
+	if _, err = hash.Write(proof.Statement2.ToAffineCompressed()); err != nil {
+		return nil, nil, err
+	}
+
+	return proof, hash.Sum(nil), nil
+}
+
+func DeComVerify(proof *Proof, commitment Commitment, curve *curves.Curve, basePoint1 curves.Point, basePoint2 curves.Point, uniqueSessionId []byte) error {
+	hash := sha3.New256()
+	if _, err := hash.Write(proof.C.Bytes()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.S.Bytes()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.Statement1.ToAffineCompressed()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.Statement2.ToAffineCompressed()); err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare(hash.Sum(nil), commitment) != 1 {
+		return fmt.Errorf("initial hash decommitment failed")
+	}
+	return Verify(proof, curve, basePoint1, basePoint2, uniqueSessionId)
+}

@@ -2,11 +2,14 @@ package rre
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"fmt"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/pkg/errors"
 	"golang.org/x/crypto/sha3"
 )
+
+type Commitment = []byte
 
 type Prover struct {
 	curve           *curves.Curve
@@ -162,4 +165,53 @@ func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, ek curves
 		return fmt.Errorf("re-randomization relation verification failed")
 	}
 	return nil
+}
+
+func (p *Prover) ComProve(s curves.Scalar, r curves.Scalar) (*Proof, Commitment, error) {
+	proof, err := p.Prove(s, r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	hash := sha3.New256()
+	if _, err = hash.Write(proof.e.Bytes()); err != nil {
+		return nil, nil, err
+	}
+	if _, err = hash.Write(proof.z1.Bytes()); err != nil {
+		return nil, nil, err
+	}
+	if _, err = hash.Write(proof.z2.Bytes()); err != nil {
+		return nil, nil, err
+	}
+	if _, err = hash.Write(proof.APrime.ToAffineCompressed()); err != nil {
+		return nil, nil, err
+	}
+	if _, err = hash.Write(proof.BPrime.ToAffineCompressed()); err != nil {
+		return nil, nil, err
+	}
+
+	return proof, hash.Sum(nil), nil
+}
+
+func DeComVerify(proof *Proof, commitment Commitment, curve *curves.Curve, basePoint curves.Point, ek curves.Point, A curves.Point, B curves.Point, uniqueSessionId []byte) error {
+	hash := sha3.New256()
+	if _, err := hash.Write(proof.e.Bytes()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.z1.Bytes()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.z2.Bytes()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.APrime.ToAffineCompressed()); err != nil {
+		return err
+	}
+	if _, err := hash.Write(proof.BPrime.ToAffineCompressed()); err != nil {
+		return err
+	}
+	if subtle.ConstantTimeCompare(hash.Sum(nil), commitment) != 1 {
+		return fmt.Errorf("initial hash decommitment failed")
+	}
+	return Verify(proof, curve, basePoint, ek, A, B, uniqueSessionId)
 }

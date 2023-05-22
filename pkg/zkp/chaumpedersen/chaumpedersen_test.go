@@ -28,3 +28,23 @@ func TestZKPOverMultipleCurves(t *testing.T) {
 		require.NoError(t, err, fmt.Sprintf("failed in curve %d", i))
 	}
 }
+
+func TestComZKPOverMultipleCurves(t *testing.T) {
+	curveInstances := []*curves.Curve{
+		curves.K256(),
+		curves.P256(),
+	}
+	for i, curve := range curveInstances {
+		u := curve.Point.Random(rand.Reader)
+		v := curve.Point.Random(rand.Reader)
+		uniqueSessionId := sha3.New256().Sum([]byte("random seed"))
+		prover, _ := NewProver(curve, u, v, uniqueSessionId)
+
+		x := curve.Scalar.Random(rand.Reader)
+		proof, commitment, err := prover.ComProve(x)
+		require.NoError(t, err, fmt.Sprintf("failed in curve %d", i))
+
+		err = DeComVerify(proof, commitment, curve, u, v, uniqueSessionId)
+		require.NoError(t, err, fmt.Sprintf("failed in curve %d", i))
+	}
+}
