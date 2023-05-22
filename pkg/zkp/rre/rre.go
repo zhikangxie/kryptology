@@ -32,6 +32,12 @@ func NewProver(curve *curves.Curve, basePoint curves.Point, ek curves.Point, A c
 	if ek == nil {
 		return nil, fmt.Errorf("encryption key missing")
 	}
+	if A == nil {
+		return nil, fmt.Errorf("point A missing")
+	}
+	if B == nil {
+		return nil, fmt.Errorf("point B missing")
+	}
 
 	return &Prover{
 		curve:           curve,
@@ -104,6 +110,12 @@ func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, ek curves
 	}
 	if ek == nil {
 		return fmt.Errorf("encryption key missing")
+	}
+	if A == nil {
+		return fmt.Errorf("point A missing")
+	}
+	if B == nil {
+		return fmt.Errorf("point B missing")
 	}
 	var err error
 

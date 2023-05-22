@@ -57,29 +57,29 @@ func (p *Prover) Prove(x curves.Scalar) (*Proof, error) {
 	// challenge
 	hash := sha3.New256()
 	if _, err = hash.Write(p.uniqueSessionId); err != nil {
-		return nil, errors.Wrap(err, "writing salt to hash in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "writing salt to hash in chaum-pedersen proof")
 	}
 	if _, err = hash.Write(p.basePoint1.ToAffineCompressed()); err != nil {
-		return nil, errors.Wrap(err, "writing basePoint1 to hash in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "writing basePoint1 to hash in chaum-pedersen proof")
 	}
 	if _, err = hash.Write(p.basePoint2.ToAffineCompressed()); err != nil {
-		return nil, errors.Wrap(err, "writing basePoint2 to hash in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "writing basePoint2 to hash in chaum-pedersen proof")
 	}
 	if _, err = hash.Write(result.Statement1.ToAffineCompressed()); err != nil {
-		return nil, errors.Wrap(err, "writing statement1 to hash in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "writing statement1 to hash in chaum-pedersen proof")
 	}
 	if _, err = hash.Write(result.Statement2.ToAffineCompressed()); err != nil {
-		return nil, errors.Wrap(err, "writing statement2 to hash in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "writing statement2 to hash in chaum-pedersen proof")
 	}
 	if _, err = hash.Write(K1.ToAffineCompressed()); err != nil {
-		return nil, errors.Wrap(err, "writing point K1 to hash in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "writing point K1 to hash in chaum-pedersen proof")
 	}
 	if _, err = hash.Write(K2.ToAffineCompressed()); err != nil {
-		return nil, errors.Wrap(err, "writing point K2 to hash in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "writing point K2 to hash in chaum-pedersen proof")
 	}
 	result.C, err = p.curve.Scalar.SetBytes(hash.Sum(nil))
 	if err != nil {
-		return nil, errors.Wrap(err, "generating challenge in chaum-pedersen prove")
+		return nil, errors.Wrap(err, "generating challenge in chaum-pedersen proof")
 	}
 
 	// response
@@ -100,36 +100,30 @@ func Verify(proof *Proof, curve *curves.Curve, basePoint1 curves.Point, basePoin
 	}
 	var err error
 
-	sBp1 := basePoint1.Mul(proof.S)
-	sBp2 := basePoint2.Mul(proof.S)
-
-	negCSta1 := proof.Statement1.Mul(proof.C.Neg())
-	negCSta2 := proof.Statement2.Mul(proof.C.Neg())
-
-	K1 := sBp1.Add(negCSta1)
-	K2 := sBp2.Add(negCSta2)
+	K1 := basePoint1.Mul(proof.S).Add(proof.Statement1.Mul(proof.C.Neg()))
+	K2 := basePoint2.Mul(proof.S).Add(proof.Statement2.Mul(proof.C.Neg()))
 
 	hash := sha3.New256()
 	if _, err = hash.Write(uniqueSessionId); err != nil {
-		return errors.Wrap(err, "writing salt to hash in chaum-pedersen verify")
+		return errors.Wrap(err, "writing salt to hash in chaum-pedersen verification")
 	}
 	if _, err = hash.Write(basePoint1.ToAffineCompressed()); err != nil {
-		return errors.Wrap(err, "writing basePoint1 to hash in chaum-pedersen verify")
+		return errors.Wrap(err, "writing basePoint1 to hash in chaum-pedersen verification")
 	}
 	if _, err = hash.Write(basePoint2.ToAffineCompressed()); err != nil {
-		return errors.Wrap(err, "writing basePoint2 to hash in chaum-pedersen verify")
+		return errors.Wrap(err, "writing basePoint2 to hash in chaum-pedersen verification")
 	}
 	if _, err = hash.Write(proof.Statement1.ToAffineCompressed()); err != nil {
-		return errors.Wrap(err, "writing statement1 to hash in chaum-pedersen verify")
+		return errors.Wrap(err, "writing statement1 to hash in chaum-pedersen verification")
 	}
 	if _, err = hash.Write(proof.Statement2.ToAffineCompressed()); err != nil {
-		return errors.Wrap(err, "writing statement2 to hash in chaum-pedersen verify")
+		return errors.Wrap(err, "writing statement2 to hash in chaum-pedersen verification")
 	}
 	if _, err = hash.Write(K1.ToAffineCompressed()); err != nil {
-		return errors.Wrap(err, "writing point K1 to hash in chaum-pedersen verify")
+		return errors.Wrap(err, "writing point K1 to hash in chaum-pedersen verification")
 	}
 	if _, err = hash.Write(K2.ToAffineCompressed()); err != nil {
-		return errors.Wrap(err, "writing point K2 to hash in chaum-pedersen verify")
+		return errors.Wrap(err, "writing point K2 to hash in chaum-pedersen verification")
 	}
 	if subtle.ConstantTimeCompare(proof.C.Bytes(), hash.Sum(nil)) != 1 {
 		return fmt.Errorf("chaum-pedersen verification failed")
