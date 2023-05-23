@@ -25,6 +25,10 @@ type Ciphertext struct {
 }
 
 func KeyGen(curve *curves.Curve, basePoint curves.Point) (curves.Point, curves.Scalar) {
+	if basePoint == nil {
+		basePoint = curve.NewGeneratorPoint()
+	}
+
 	d := curve.Scalar.Random(rand.Reader)
 	T := basePoint.Mul(d)
 
@@ -32,6 +36,10 @@ func KeyGen(curve *curves.Curve, basePoint curves.Point) (curves.Point, curves.S
 }
 
 func NewSemiDecryptor(curve *curves.Curve, basePoint curves.Point) *SemiDecryptor {
+	if basePoint == nil {
+		basePoint = curve.NewGeneratorPoint()
+	}
+
 	T, d := KeyGen(curve, basePoint)
 	return &SemiDecryptor{
 		curve:     curve,
@@ -42,6 +50,10 @@ func NewSemiDecryptor(curve *curves.Curve, basePoint curves.Point) *SemiDecrypto
 }
 
 func NewEncryptor(curve *curves.Curve, basePoint curves.Point, T curves.Point) *Encryptor {
+	if basePoint == nil {
+		basePoint = curve.NewGeneratorPoint()
+	}
+
 	return &Encryptor{
 		curve:     curve,
 		basePoint: basePoint,

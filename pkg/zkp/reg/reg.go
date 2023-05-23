@@ -8,6 +8,8 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+type SessionId = []byte
+
 type Prover struct {
 	curve           *curves.Curve
 	basePoint       curves.Point
