@@ -50,10 +50,10 @@ func REGVerify(curve *curves.Curve, T curves.Point, regProof *reg.Proof, regProo
 	return reg.Verify(regProof, curve, nil, T, regProofSessionId)
 }
 
-func RSPDLProve(curve *curves.Curve, U curves.Point, V curves.Point, x curves.Scalar) (*rspdl.Proof, rspdl.SessionId, error) {
+func RSPDLProve(curve *curves.Curve, U curves.Point, V curves.Point, X curves.Point, x curves.Scalar) (*rspdl.Proof, rspdl.SessionId, error) {
 	uniqueSessionId := [simplest.DigestSize]byte{}
 	rspdlProofSessionId := uniqueSessionId[:]
-	rspdlProver, err := rspdl.NewProver(curve, nil, U, V, rspdlProofSessionId)
+	rspdlProver, err := rspdl.NewProver(curve, nil, U, V, X, rspdlProofSessionId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -65,6 +65,6 @@ func RSPDLProve(curve *curves.Curve, U curves.Point, V curves.Point, x curves.Sc
 	return rspdlProof, rspdlProofSessionId, nil
 }
 
-func RSPDLVerify(curve *curves.Curve, rspdlProof *rspdl.Proof, U curves.Point, V curves.Point, rspdlProofSessionId rspdl.SessionId) error {
-	return rspdl.Verify(rspdlProof, curve, nil, U, V, rspdlProofSessionId)
+func RSPDLVerify(curve *curves.Curve, rspdlProof *rspdl.Proof, U curves.Point, V curves.Point, X curves.Point, rspdlProofSessionId rspdl.SessionId) error {
+	return rspdl.Verify(rspdlProof, curve, nil, U, V, X, rspdlProofSessionId)
 }

@@ -15,6 +15,7 @@ type Prover struct {
 	basePoint       curves.Point
 	A               curves.Point
 	B               curves.Point
+	X               curves.Point
 	uniqueSessionId []byte
 }
 
@@ -22,12 +23,11 @@ type Proof struct {
 	e      curves.Scalar
 	z1     curves.Scalar
 	z2     curves.Scalar
-	X      curves.Point
 	APrime curves.Point
 	BPrime curves.Point
 }
 
-func NewProver(curve *curves.Curve, basePoint curves.Point, A curves.Point, B curves.Point, uniqueSessionId []byte) (*Prover, error) {
+func NewProver(curve *curves.Curve, basePoint curves.Point, A curves.Point, B curves.Point, X curves.Point, uniqueSessionId []byte) (*Prover, error) {
 	if basePoint == nil {
 		basePoint = curve.NewGeneratorPoint()
 	}
@@ -37,12 +37,16 @@ func NewProver(curve *curves.Curve, basePoint curves.Point, A curves.Point, B cu
 	if B == nil {
 		return nil, fmt.Errorf("point B missing")
 	}
+	if X == nil {
+		return nil, fmt.Errorf("point X missing")
+	}
 
 	return &Prover{
 		curve:           curve,
 		basePoint:       basePoint,
 		A:               A,
 		B:               B,
+		X:               X,
 		uniqueSessionId: uniqueSessionId,
 	}, nil
 }
@@ -52,7 +56,6 @@ func (p *Prover) Prove(x curves.Scalar, r curves.Scalar) (*Proof, error) {
 	result := &Proof{}
 
 	// compute statement
-	result.X = p.basePoint.Mul(x)
 	result.APrime = p.A.Mul(x).Add(p.basePoint.Mul(r))
 	result.BPrime = p.B.Mul(x).Add(p.basePoint.Mul(r))
 
@@ -77,7 +80,7 @@ func (p *Prover) Prove(x curves.Scalar, r curves.Scalar) (*Proof, error) {
 	if _, err = hash.Write(p.B.ToAffineCompressed()); err != nil {
 		return nil, errors.Wrap(err, "writing B to hash in scalar product with discrete logarithm relation proof")
 	}
-	if _, err = hash.Write(result.X.ToAffineCompressed()); err != nil {
+	if _, err = hash.Write(p.X.ToAffineCompressed()); err != nil {
 		return nil, errors.Wrap(err, "writing X (first part of statement) to hash in scalar product with discrete logarithm relation proof")
 	}
 	if _, err = hash.Write(result.APrime.ToAffineCompressed()); err != nil {
@@ -107,7 +110,7 @@ func (p *Prover) Prove(x curves.Scalar, r curves.Scalar) (*Proof, error) {
 	return result, nil
 }
 
-func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, A curves.Point, B curves.Point, uniqueSessionId []byte) error {
+func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, A curves.Point, B curves.Point, X curves.Point, uniqueSessionId []byte) error {
 	if basePoint == nil {
 		basePoint = curve.NewGeneratorPoint()
 	}
@@ -117,10 +120,13 @@ func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, A curves.
 	if B == nil {
 		return fmt.Errorf("point B missing")
 	}
+	if X == nil {
+		return fmt.Errorf("point X missing")
+	}
 	var err error
 
 	// compute commitment
-	Y1 := basePoint.Mul(proof.z1).Sub(proof.X.Mul(proof.e))
+	Y1 := basePoint.Mul(proof.z1).Sub(X.Mul(proof.e))
 	Y2 := A.Mul(proof.z1).Add(basePoint.Mul(proof.z2)).Sub(proof.APrime.Mul(proof.e))
 	Y3 := B.Mul(proof.z1).Add(basePoint.Mul(proof.z2)).Sub(proof.BPrime.Mul(proof.e))
 
@@ -138,7 +144,7 @@ func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, A curves.
 	if _, err = hash.Write(B.ToAffineCompressed()); err != nil {
 		return errors.Wrap(err, "writing B to hash in scalar product with discrete logarithm relation verification")
 	}
-	if _, err = hash.Write(proof.X.ToAffineCompressed()); err != nil {
+	if _, err = hash.Write(X.ToAffineCompressed()); err != nil {
 		return errors.Wrap(err, "writing X (first part of statement) to hash in scalar product with discrete logarithm relation verification")
 	}
 	if _, err = hash.Write(proof.APrime.ToAffineCompressed()); err != nil {

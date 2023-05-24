@@ -35,12 +35,11 @@ func KeyGen(curve *curves.Curve, basePoint curves.Point) (curves.Point, curves.S
 	return T, d
 }
 
-func NewSemiDecryptor(curve *curves.Curve, basePoint curves.Point) *SemiDecryptor {
+func NewSemiDecryptor(curve *curves.Curve, basePoint curves.Point, T curves.Point, d curves.Scalar) *SemiDecryptor {
 	if basePoint == nil {
 		basePoint = curve.NewGeneratorPoint()
 	}
 
-	T, d := KeyGen(curve, basePoint)
 	return &SemiDecryptor{
 		curve:     curve,
 		basePoint: basePoint,
@@ -58,6 +57,13 @@ func NewEncryptor(curve *curves.Curve, basePoint curves.Point, T curves.Point) *
 		curve:     curve,
 		basePoint: basePoint,
 		T:         T,
+	}
+}
+
+func NewCiphertext(U curves.Point, V curves.Point) *Ciphertext {
+	return &Ciphertext{
+		U: U,
+		V: V,
 	}
 }
 
@@ -79,7 +85,10 @@ func (semiDecryptor *SemiDecryptor) SemiDecrypt(ciphertext *Ciphertext) curves.P
 	return ciphertext.V.Sub(semiDecryptor.basePoint.Mul(semiDecryptor.d))
 }
 
-func Compare(basePoint curves.Point, m curves.Scalar, semiM curves.Point) error {
+func Compare(curve *curves.Curve, basePoint curves.Point, m curves.Scalar, semiM curves.Point) error {
+	if basePoint == nil {
+		basePoint = curve.NewGeneratorPoint()
+	}
 	if !semiM.Equal(basePoint.Mul(m)) {
 		fmt.Errorf("failed when comparing semi decryption result with original message")
 	}

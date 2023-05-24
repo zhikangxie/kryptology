@@ -15,7 +15,9 @@ func TestElGamalExpOverMultipleCurves(t *testing.T) {
 	}
 	for i, curve := range curveInstances {
 		basePoint := curve.Point.Random(rand.Reader)
-		semiDecryptor := NewSemiDecryptor(curve, basePoint)
+		d := curve.Scalar.Random(rand.Reader)
+		T := basePoint.Mul(d)
+		semiDecryptor := NewSemiDecryptor(curve, basePoint, T, d)
 		encryptor := NewEncryptor(curve, basePoint, semiDecryptor.T)
 
 		message := curve.Scalar.Random(rand.Reader)
@@ -24,7 +26,7 @@ func TestElGamalExpOverMultipleCurves(t *testing.T) {
 
 		semiMessage := semiDecryptor.SemiDecrypt(ciphertext)
 
-		err := Compare(basePoint, message, semiMessage)
+		err := Compare(curve, basePoint, message, semiMessage)
 		require.NoError(t, err, fmt.Sprintf("failed in curve %d", i))
 	}
 }
@@ -36,7 +38,9 @@ func TestElGamalExpReRandomizeOverMultipleCurves(t *testing.T) {
 	}
 	for i, curve := range curveInstances {
 		basePoint := curve.Point.Random(rand.Reader)
-		semiDecryptor := NewSemiDecryptor(curve, basePoint)
+		d := curve.Scalar.Random(rand.Reader)
+		T := basePoint.Mul(d)
+		semiDecryptor := NewSemiDecryptor(curve, basePoint, T, d)
 		encryptor := NewEncryptor(curve, basePoint, semiDecryptor.T)
 
 		message := curve.Scalar.Random(rand.Reader)
@@ -49,7 +53,7 @@ func TestElGamalExpReRandomizeOverMultipleCurves(t *testing.T) {
 
 		semiNewMessage := semiDecryptor.SemiDecrypt(newCiphertext)
 
-		err := Compare(basePoint, message.Mul(s), semiNewMessage)
+		err := Compare(curve, basePoint, message.Mul(s), semiNewMessage)
 		require.NoError(t, err, fmt.Sprintf("failed in curve %d", i))
 	}
 }

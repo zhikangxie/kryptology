@@ -18,15 +18,16 @@ func TestZKPOverMultipleCurves(t *testing.T) {
 		basePoint := curve.Point.Random(rand.Reader)
 		A := curve.Point.Random(rand.Reader)
 		B := curve.Point.Random(rand.Reader)
-		uniqueSessionId := sha3.New256().Sum([]byte("random seed"))
-		prover, _ := NewProver(curve, basePoint, A, B, uniqueSessionId)
-
 		x := curve.Scalar.Random(rand.Reader)
+		X := basePoint.Mul(x)
+		uniqueSessionId := sha3.New256().Sum([]byte("random seed"))
+		prover, _ := NewProver(curve, basePoint, A, B, X, uniqueSessionId)
+
 		r := curve.Scalar.Random(rand.Reader)
 		proof, err := prover.Prove(x, r)
 		require.NoError(t, err, fmt.Sprintf("failed in curve %d", i))
 
-		err = Verify(proof, curve, basePoint, A, B, uniqueSessionId)
+		err = Verify(proof, curve, basePoint, A, B, X, uniqueSessionId)
 		require.NoError(t, err, fmt.Sprintf("failed in curve %d", i))
 	}
 }
