@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/ot/base/simplest"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/sign_offline"
 	"github.com/coinbase/kryptology/pkg/zkp/reg"
 	"github.com/coinbase/kryptology/pkg/zkp/rspdl"
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
@@ -67,4 +68,34 @@ func RSPDLProve(curve *curves.Curve, U curves.Point, V curves.Point, X curves.Po
 
 func RSPDLVerify(curve *curves.Curve, rspdlProof *rspdl.Proof, U curves.Point, V curves.Point, X curves.Point, rspdlProofSessionId rspdl.SessionId) error {
 	return rspdl.Verify(rspdlProof, curve, nil, U, V, X, rspdlProofSessionId)
+}
+
+// functions for phase 3
+
+func MtASimu[A any, B any](curve *curves.Curve, gamma curves.Scalar, x curves.Scalar, sender sign_offline.MTASender[A, B], receiver sign_offline.MTAReceiver[A, B]) (curves.Scalar, curves.Scalar) {
+	a := receiver.Init(x)
+	alpha, b := sender.Update(gamma, a)
+	beta := receiver.Multiply(b)
+
+	return alpha, beta
+}
+
+func SigmaREGProve(curve *curves.Curve, T curves.Point, sigma curves.Scalar) (*reg.Proof, reg.SessionId, error) {
+	uniqueSessionId := [simplest.DigestSize]byte{}
+	sigmaRegProofSessionId := uniqueSessionId[:]
+	sigmaRegProver, err := reg.NewProver(curve, nil, T, sigmaRegProofSessionId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	rsigma := curve.Scalar.Random(rand.Reader)
+	sigmaRegProof, err := sigmaRegProver.Prove(sigma, rsigma)
+	if err != nil {
+		return nil, nil, err
+	}
+	return sigmaRegProof, sigmaRegProofSessionId, nil
+}
+
+func SigmaREGVerify(curve *curves.Curve, T curves.Point, sigmaRegProof *reg.Proof, sigmaRegProofSessionId reg.SessionId) error {
+	return reg.Verify(sigmaRegProof, curve, nil, T, sigmaRegProofSessionId)
 }

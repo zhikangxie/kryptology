@@ -1,15 +1,18 @@
 package scheme
 
 import (
+	"github.com/coinbase/kryptology/pkg/core"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/elgamalexp"
+	"github.com/coinbase/kryptology/pkg/paillier"
+	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/mta/paillier"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
 
 func TestScheme_DKGPhase1(t *testing.T) {
 	curveInit := curves.K256()
-	scheme := NewScheme(curveInit)
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
 
 	err := scheme.DKGPhase1()
 	require.NoError(t, err, "failed in Phase 1 of DKG")
@@ -17,7 +20,7 @@ func TestScheme_DKGPhase1(t *testing.T) {
 
 func TestScheme_DKGPhase2(t *testing.T) {
 	curveInit := curves.K256()
-	scheme := NewScheme(curveInit)
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
 
 	err := scheme.DKGPhase1()
 	require.NoError(t, err, "failed in Phase 1 of DKG")
@@ -48,4 +51,53 @@ func TestScheme_DKGPhase2(t *testing.T) {
 	}
 	err = elgamalexp.Compare(scheme.curve, nil, x.Mul(gamma), semiXGamma)
 	require.NoError(t, err, "failed when generating encryption of xGamma")
+}
+
+func TestScheme_DKGPhase3(t *testing.T) {
+	curveInit := curves.K256()
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
+	var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	t.Log("safe primes generated")
+	for i := 1; i <= scheme.n; i++ {
+		for j := 1; j <= scheme.n; j++ {
+			if i == j {
+				continue
+			}
+			var sender = mta_paillier.NewSender(scheme.curve, p, q)
+			var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
+			setup1Statement, setup1Proof := receiver.SetupInit()
+			setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+			receiver.SetupDone(setup2Statement, setup2Proof)
+			scheme.mtaSenders[i-1][j-1] = sender
+			scheme.mtaReceivers[i-1][j-1] = receiver
+			t.Logf("MtA between party %d and party %d initiated", i, j)
+		}
+	}
+
+	err := scheme.DKGPhase1()
+	require.NoError(t, err, "failed in Phase 1 of DKG")
+
+	err = scheme.DKGPhase2()
+	require.NoError(t, err, "failed in Phase 2 of DKG")
+
+	err = scheme.DKGPhase3()
+	require.NoError(t, err, "failed in Phase 3 of DKG")
+
+	// verify encryption of sigma=sum(sigmas)
+	d := scheme.ds[0]
+	for id := 2; id <= scheme.n; id++ {
+		d = d.Add(scheme.ds[id-1])
+	}
+	semiDecryptor := elgamalexp.NewSemiDecryptor(scheme.curve, nil, scheme.T, d)
+	ctSigma := elgamalexp.NewCiphertext(scheme.USigma, scheme.VSigma)
+	semiSigma := semiDecryptor.SemiDecrypt(ctSigma)
+	sigma := scheme.sigmas[0]
+	for id := 2; id <= scheme.n; id++ {
+		sigma = sigma.Add(scheme.sigmas[id-1])
+	}
+	err = elgamalexp.Compare(scheme.curve, nil, sigma, semiSigma)
+	require.NoError(t, err, "failed when generating encryption of sigma")
 }
