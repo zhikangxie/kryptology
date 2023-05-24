@@ -16,6 +16,14 @@ func TestScheme_DKGPhase1(t *testing.T) {
 
 	err := scheme.DKGPhase1()
 	require.NoError(t, err, "failed in Phase 1 of DKG")
+
+	d := scheme.ds[0]
+	for id := 2; id <= scheme.n; id++ {
+		d = d.Add(scheme.ds[id-1])
+	}
+	if !scheme.T.Equal(scheme.P.Mul(d)) {
+		panic("T")
+	}
 }
 
 func TestScheme_DKGPhase2(t *testing.T) {
@@ -100,4 +108,54 @@ func TestScheme_DKGPhase3(t *testing.T) {
 	}
 	err = elgamalexp.Compare(scheme.curve, nil, sigma, semiSigma)
 	require.NoError(t, err, "failed when generating encryption of sigma")
+
+	// verify sum(sigmas) = xr
+	x := scheme.xs[0]
+	for id := 2; id <= scheme.n; id++ {
+		x = x.Add(scheme.xs[id-1])
+	}
+	gamma := scheme.gammas[0]
+	for id := 2; id <= scheme.n; id++ {
+		gamma = gamma.Add(scheme.gammas[id-1])
+	}
+	if sigma.Cmp(x.Mul(gamma)) != 0 {
+		panic("sum of sigmas is not equal to xr")
+	}
+}
+
+func TestScheme_DKGPhase4(t *testing.T) {
+	curveInit := curves.K256()
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
+	var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	t.Log("safe primes generated")
+	for i := 1; i <= scheme.n; i++ {
+		for j := 1; j <= scheme.n; j++ {
+			if i == j {
+				continue
+			}
+			var sender = mta_paillier.NewSender(scheme.curve, p, q)
+			var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
+			setup1Statement, setup1Proof := receiver.SetupInit()
+			setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+			receiver.SetupDone(setup2Statement, setup2Proof)
+			scheme.mtaSenders[i-1][j-1] = sender
+			scheme.mtaReceivers[i-1][j-1] = receiver
+			t.Logf("MtA between party %d and party %d initiated", i, j)
+		}
+	}
+
+	err := scheme.DKGPhase1()
+	require.NoError(t, err, "failed in Phase 1 of DKG")
+
+	err = scheme.DKGPhase2()
+	require.NoError(t, err, "failed in Phase 2 of DKG")
+
+	err = scheme.DKGPhase3()
+	require.NoError(t, err, "failed in Phase 3 of DKG")
+
+	err = scheme.DKGPhase4()
+	require.NoError(t, err, "failed in Phase 4 of DKG")
 }

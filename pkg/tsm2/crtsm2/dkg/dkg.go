@@ -5,7 +5,9 @@ import (
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/ot/base/simplest"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/sign_offline"
+	"github.com/coinbase/kryptology/pkg/zkp/chaumpedersen"
 	"github.com/coinbase/kryptology/pkg/zkp/reg"
+	"github.com/coinbase/kryptology/pkg/zkp/rre"
 	"github.com/coinbase/kryptology/pkg/zkp/rspdl"
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
 )
@@ -51,10 +53,10 @@ func REGVerify(curve *curves.Curve, T curves.Point, regProof *reg.Proof, regProo
 	return reg.Verify(regProof, curve, nil, T, regProofSessionId)
 }
 
-func RSPDLProve(curve *curves.Curve, U curves.Point, V curves.Point, X curves.Point, x curves.Scalar) (*rspdl.Proof, rspdl.SessionId, error) {
+func RSPDLProve(curve *curves.Curve, T curves.Point, U curves.Point, V curves.Point, X curves.Point, x curves.Scalar) (*rspdl.Proof, rspdl.SessionId, error) {
 	uniqueSessionId := [simplest.DigestSize]byte{}
 	rspdlProofSessionId := uniqueSessionId[:]
-	rspdlProver, err := rspdl.NewProver(curve, nil, U, V, X, rspdlProofSessionId)
+	rspdlProver, err := rspdl.NewProver(curve, nil, T, U, V, X, rspdlProofSessionId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,8 +68,8 @@ func RSPDLProve(curve *curves.Curve, U curves.Point, V curves.Point, X curves.Po
 	return rspdlProof, rspdlProofSessionId, nil
 }
 
-func RSPDLVerify(curve *curves.Curve, rspdlProof *rspdl.Proof, U curves.Point, V curves.Point, X curves.Point, rspdlProofSessionId rspdl.SessionId) error {
-	return rspdl.Verify(rspdlProof, curve, nil, U, V, X, rspdlProofSessionId)
+func RSPDLVerify(curve *curves.Curve, T curves.Point, rspdlProof *rspdl.Proof, U curves.Point, V curves.Point, X curves.Point, rspdlProofSessionId rspdl.SessionId) error {
+	return rspdl.Verify(rspdlProof, curve, nil, T, U, V, X, rspdlProofSessionId)
 }
 
 // functions for phase 3
@@ -98,4 +100,54 @@ func SigmaREGProve(curve *curves.Curve, T curves.Point, sigma curves.Scalar) (*r
 
 func SigmaREGVerify(curve *curves.Curve, T curves.Point, sigmaRegProof *reg.Proof, sigmaRegProofSessionId reg.SessionId) error {
 	return reg.Verify(sigmaRegProof, curve, nil, T, sigmaRegProofSessionId)
+}
+
+// functions for phase 4
+
+func RREComProve(curve *curves.Curve, T curves.Point, U curves.Point, V curves.Point) (*rre.Proof, rre.Commitment, rre.SessionId, error) {
+	uniqueSessionId := [simplest.DigestSize]byte{}
+	rreProofSessionId := uniqueSessionId[:]
+	rreProver, err := rre.NewProver(curve, nil, T, U, V, rreProofSessionId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	alpha := curve.Scalar.Random(rand.Reader)
+	beta := curve.Scalar.Random(rand.Reader)
+	rreProof, rreCommitment, err := rreProver.ComProve(alpha, beta)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return rreProof, rreCommitment, rreProofSessionId, nil
+}
+
+func RREDeComVerify(curve *curves.Curve, rreProof *rre.Proof, rreCommitment rre.Commitment, rreProofSessionId rre.SessionId, T curves.Point, U curves.Point, V curves.Point) error {
+	return rre.DeComVerify(rreProof, rreCommitment, curve, nil, T, U, V, rreProofSessionId)
+}
+
+func DDHComProve(curve *curves.Curve, P curves.Point, UPrime curves.Point, Ti curves.Point, UiPrime curves.Point, di curves.Scalar) (*chaumpedersen.Proof, chaumpedersen.Commitment, chaumpedersen.SessionId, error) {
+	if P == nil {
+		P = curve.NewGeneratorPoint()
+	}
+	uniqueSessionId := [simplest.DigestSize]byte{}
+	ddhProofSessionId := uniqueSessionId[:]
+	ddhProver, err := chaumpedersen.NewProver(curve, P, UPrime, ddhProofSessionId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	ddhProof, ddhCommitment, err := ddhProver.ComProveWithStatement(Ti, UiPrime, di)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return ddhProof, ddhCommitment, ddhProofSessionId, nil
+}
+
+func DDHDeComVerify(curve *curves.Curve, ddhProof *chaumpedersen.Proof, ddhCommitment chaumpedersen.Commitment, ddhProofSessionId chaumpedersen.SessionId, P curves.Point, UPrime curves.Point) error {
+	if P == nil {
+		P = curve.NewGeneratorPoint()
+	}
+	return chaumpedersen.DeComVerify(ddhProof, ddhCommitment, curve, P, UPrime, ddhProofSessionId)
 }

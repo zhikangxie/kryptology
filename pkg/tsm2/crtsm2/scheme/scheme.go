@@ -1,10 +1,13 @@
 package scheme
 
 import (
+	"fmt"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/sign_offline"
 	"github.com/coinbase/kryptology/pkg/tsm2/crtsm2/dkg"
+	"github.com/coinbase/kryptology/pkg/zkp/chaumpedersen"
 	"github.com/coinbase/kryptology/pkg/zkp/reg"
+	"github.com/coinbase/kryptology/pkg/zkp/rre"
 	"github.com/coinbase/kryptology/pkg/zkp/rspdl"
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
 )
@@ -22,6 +25,7 @@ type MTASender[A any, B any] interface {
 
 type Scheme[A any, B any] struct {
 	curve *curves.Curve
+	P     curves.Point
 
 	n int
 
@@ -60,12 +64,28 @@ type Scheme[A any, B any] struct {
 	sigmaRegProofSessionIds [num]reg.SessionId
 	USigma                  curves.Point
 	VSigma                  curves.Point
+
+	U curves.Point
+	V curves.Point
+
+	rreProofs          [num]*rre.Proof
+	rreCommitments     [num]rre.Commitment
+	rreProofSessionIds [num]rre.SessionId
+
+	UPrime  curves.Point
+	VPrime  curves.Point
+	UPrimes [num]curves.Point
+
+	ddhProofs          [num]*chaumpedersen.Proof
+	ddhCommitments     [num]chaumpedersen.Commitment
+	ddhProofSessionIds [num]chaumpedersen.SessionId
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
 	return &Scheme[A, B]{
 		curve: curve,
 		n:     num,
+		P:     curve.NewGeneratorPoint(),
 	}
 }
 
@@ -185,7 +205,7 @@ func (scheme *Scheme[A, B]) DKGPhase2() error {
 
 	// compute sp-dl relations and proofs
 	for id := 1; id <= scheme.n; id++ {
-		rspdlProof, rspdlProofSessionId, err := dkg.RSPDLProve(scheme.curve, scheme.UGamma, scheme.VGamma, scheme.QProofs[id-1].Statement, scheme.xs[id-1])
+		rspdlProof, rspdlProofSessionId, err := dkg.RSPDLProve(scheme.curve, scheme.T, scheme.UGamma, scheme.VGamma, scheme.QProofs[id-1].Statement, scheme.xs[id-1])
 		if err != nil {
 			return err
 		}
@@ -199,7 +219,7 @@ func (scheme *Scheme[A, B]) DKGPhase2() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
-			err := dkg.RSPDLVerify(scheme.curve, scheme.xGammaRspdlProofs[id-1], scheme.UGamma, scheme.VGamma, scheme.QProofs[id-1].Statement, scheme.xGammaRspdlProofSessionIds[id-1])
+			err := dkg.RSPDLVerify(scheme.curve, scheme.T, scheme.xGammaRspdlProofs[id-1], scheme.UGamma, scheme.VGamma, scheme.QProofs[id-1].Statement, scheme.xGammaRspdlProofSessionIds[id-1])
 			if err != nil {
 				return err
 			}
@@ -232,6 +252,9 @@ func (scheme *Scheme[A, B]) DKGPhase3() error {
 			alpha, beta := dkg.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.xs[j-1], scheme.mtaSenders[i-1][j-1], scheme.mtaReceivers[i-1][j-1])
 			scheme.alphas[i-1][j-1] = alpha
 			scheme.betas[j-1][i-1] = beta
+			if alpha.Add(beta).Cmp(scheme.gammas[i-1].Mul(scheme.xs[j-1])) != 0 {
+				return fmt.Errorf("failed in MtA")
+			}
 		}
 	}
 
@@ -280,6 +303,99 @@ func (scheme *Scheme[A, B]) DKGPhase3() error {
 		for i := 2; i <= scheme.n; i++ {
 			scheme.USigma = scheme.USigma.Add(scheme.sigmaRegProofs[i-1].A)
 			scheme.VSigma = scheme.VSigma.Add(scheme.sigmaRegProofs[i-1].B)
+		}
+	}
+
+	return nil
+}
+
+func (scheme *Scheme[A, B]) DKGPhase4() error {
+	// compute U and V
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		scheme.U = scheme.UXGamma.Sub(scheme.USigma)
+		scheme.V = scheme.VXGamma.Sub(scheme.VSigma)
+	}
+
+	// re-randomize, generate proof and commitment
+	for id := 1; id <= scheme.n; id++ {
+		rreProof, rreCommitment, rreProofSessionId, err := dkg.RREComProve(scheme.curve, scheme.T, scheme.U, scheme.V)
+		if err != nil {
+			return err
+		}
+		scheme.rreProofs[id-1] = rreProof
+		scheme.rreCommitments[id-1] = rreCommitment
+		scheme.rreProofSessionIds[id-1] = rreProofSessionId
+	}
+
+	// de-com, verify proof of re-randomization
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		for id := 1; id <= scheme.n; id++ {
+			err := dkg.RREDeComVerify(scheme.curve, scheme.rreProofs[id-1], scheme.rreCommitments[id-1], scheme.rreProofSessionIds[id-1], scheme.T, scheme.U, scheme.V)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// compute UPrime, VPrime
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		scheme.UPrime = scheme.rreProofs[0].APrime
+		scheme.VPrime = scheme.rreProofs[0].BPrime
+		for id := 2; id <= scheme.n; id++ {
+			scheme.UPrime = scheme.UPrime.Add(scheme.rreProofs[id-1].APrime)
+			scheme.VPrime = scheme.VPrime.Add(scheme.rreProofs[id-1].BPrime)
+		}
+	}
+
+	// compute U'_i
+	for id := 1; id <= scheme.n; id++ {
+		scheme.UPrimes[id-1] = scheme.UPrime.Mul(scheme.ds[id-1])
+	}
+
+	// generate DDH proof and commitment
+	for id := 1; id <= scheme.n; id++ {
+		ddhProof, ddhCommitment, ddhProofSessionId, err := dkg.DDHComProve(scheme.curve, nil, scheme.UPrime, scheme.TProofs[id-1].Statement, scheme.UPrimes[id-1], scheme.ds[id-1])
+		if err != nil {
+			return err
+		}
+		scheme.ddhProofs[id-1] = ddhProof
+		scheme.ddhCommitments[id-1] = ddhCommitment
+		scheme.ddhProofSessionIds[id-1] = ddhProofSessionId
+	}
+
+	// de-com, verify proof of ddh
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		for id := 1; id <= scheme.n; id++ {
+			err := dkg.DDHDeComVerify(scheme.curve, scheme.ddhProofs[id-1], scheme.ddhCommitments[id-1], scheme.ddhProofSessionIds[id-1], nil, scheme.UPrime)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// compute sum of UiPrime and compare it with VPrime
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		sumUiPrime := scheme.UPrimes[0]
+		for id := 2; id <= scheme.n; id++ {
+			sumUiPrime = sumUiPrime.Add(scheme.UPrimes[id-1])
+		}
+		if !sumUiPrime.Equal(scheme.VPrime) {
+			return fmt.Errorf("failed when verifying sum of U'_i")
 		}
 	}
 

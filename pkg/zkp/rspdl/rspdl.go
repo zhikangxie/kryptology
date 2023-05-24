@@ -13,6 +13,7 @@ type SessionId = []byte
 type Prover struct {
 	curve           *curves.Curve
 	basePoint       curves.Point
+	T               curves.Point
 	A               curves.Point
 	B               curves.Point
 	X               curves.Point
@@ -27,7 +28,7 @@ type Proof struct {
 	BPrime curves.Point
 }
 
-func NewProver(curve *curves.Curve, basePoint curves.Point, A curves.Point, B curves.Point, X curves.Point, uniqueSessionId []byte) (*Prover, error) {
+func NewProver(curve *curves.Curve, basePoint curves.Point, T curves.Point, A curves.Point, B curves.Point, X curves.Point, uniqueSessionId []byte) (*Prover, error) {
 	if basePoint == nil {
 		basePoint = curve.NewGeneratorPoint()
 	}
@@ -44,6 +45,7 @@ func NewProver(curve *curves.Curve, basePoint curves.Point, A curves.Point, B cu
 	return &Prover{
 		curve:           curve,
 		basePoint:       basePoint,
+		T:               T,
 		A:               A,
 		B:               B,
 		X:               X,
@@ -57,14 +59,14 @@ func (p *Prover) Prove(x curves.Scalar, r curves.Scalar) (*Proof, error) {
 
 	// compute statement
 	result.APrime = p.A.Mul(x).Add(p.basePoint.Mul(r))
-	result.BPrime = p.B.Mul(x).Add(p.basePoint.Mul(r))
+	result.BPrime = p.B.Mul(x).Add(p.T.Mul(r))
 
 	// compute commitment
 	alpha := p.curve.Scalar.Random(rand.Reader)
 	beta := p.curve.Scalar.Random(rand.Reader)
 	Y1 := p.basePoint.Mul(beta)
 	Y2 := p.A.Mul(beta).Add(p.basePoint.Mul(alpha))
-	Y3 := p.B.Mul(beta).Add(p.basePoint.Mul(alpha))
+	Y3 := p.B.Mul(beta).Add(p.T.Mul(alpha))
 
 	// compute challenge
 	hash := sha3.New256()
@@ -110,9 +112,12 @@ func (p *Prover) Prove(x curves.Scalar, r curves.Scalar) (*Proof, error) {
 	return result, nil
 }
 
-func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, A curves.Point, B curves.Point, X curves.Point, uniqueSessionId []byte) error {
+func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, T curves.Point, A curves.Point, B curves.Point, X curves.Point, uniqueSessionId []byte) error {
 	if basePoint == nil {
 		basePoint = curve.NewGeneratorPoint()
+	}
+	if T == nil {
+		return fmt.Errorf("point A missing")
 	}
 	if A == nil {
 		return fmt.Errorf("point A missing")
@@ -128,7 +133,7 @@ func Verify(proof *Proof, curve *curves.Curve, basePoint curves.Point, A curves.
 	// compute commitment
 	Y1 := basePoint.Mul(proof.z1).Sub(X.Mul(proof.e))
 	Y2 := A.Mul(proof.z1).Add(basePoint.Mul(proof.z2)).Sub(proof.APrime.Mul(proof.e))
-	Y3 := B.Mul(proof.z1).Add(basePoint.Mul(proof.z2)).Sub(proof.BPrime.Mul(proof.e))
+	Y3 := B.Mul(proof.z1).Add(T.Mul(proof.z2)).Sub(proof.BPrime.Mul(proof.e))
 
 	// compute challenge
 	hash := sha3.New256()

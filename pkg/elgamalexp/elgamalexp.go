@@ -82,7 +82,7 @@ func (encryptor *Encryptor) ReRandomize(ciphertext *Ciphertext, s curves.Scalar,
 }
 
 func (semiDecryptor *SemiDecryptor) SemiDecrypt(ciphertext *Ciphertext) curves.Point {
-	return ciphertext.V.Sub(semiDecryptor.basePoint.Mul(semiDecryptor.d))
+	return ciphertext.V.Sub(ciphertext.U.Mul(semiDecryptor.d))
 }
 
 func Compare(curve *curves.Curve, basePoint curves.Point, m curves.Scalar, semiM curves.Point) error {
@@ -90,7 +90,7 @@ func Compare(curve *curves.Curve, basePoint curves.Point, m curves.Scalar, semiM
 		basePoint = curve.NewGeneratorPoint()
 	}
 	if !semiM.Equal(basePoint.Mul(m)) {
-		fmt.Errorf("failed when comparing semi decryption result with original message")
+		return fmt.Errorf("failed when comparing semi decryption result with original message")
 	}
 	return nil
 }
