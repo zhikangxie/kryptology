@@ -167,3 +167,39 @@ func TestScheme_DSPhase1(t *testing.T) {
 	err := scheme.DSPhase1()
 	require.NoError(t, err, "failed in Phase 1 of DS")
 }
+
+func TestScheme_DSPhase2(t *testing.T) {
+	curveInit := curves.K256()
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
+
+	err := scheme.DKGPhase1()
+	require.NoError(t, err, "failed in Phase 1 of DKG")
+
+	err = scheme.DKGPhase2()
+	require.NoError(t, err, "failed in Phase 2 of DKG")
+
+	err = scheme.DSPhase1()
+	require.NoError(t, err, "failed in Phase 1 of DS")
+
+	err = scheme.DSPhase2()
+	require.NoError(t, err, "failed in Phase 2 of DS")
+
+	// verify the correctness of encryption of k*gamma
+	k := scheme.ks[0]
+	for i := 2; i <= scheme.n; i++ {
+		k = k.Add(scheme.ks[i-1])
+	}
+	gamma := scheme.gammas[0]
+	for i := 2; i <= scheme.n; i++ {
+		gamma = gamma.Add(scheme.gammas[i-1])
+	}
+	d := scheme.ds[0]
+	for i := 2; i <= scheme.n; i++ {
+		d = d.Add(scheme.ds[i-1])
+	}
+	semiDecryptor := elgamalexp.NewSemiDecryptor(scheme.curve, nil, scheme.T, d)
+	ctKGamma := elgamalexp.NewCiphertext(scheme.AKGamma, scheme.BKGamma)
+	semiKGamma := semiDecryptor.SemiDecrypt(ctKGamma)
+	err = elgamalexp.Compare(scheme.curve, nil, k.Mul(gamma), semiKGamma)
+	require.NoError(t, err, "failed in generating the ciphertext of k*gamma")
+}

@@ -100,6 +100,11 @@ type Scheme[A any, B any] struct {
 
 	R  curves.Point
 	rx curves.Scalar
+
+	sRanCTGammaProofs          [num]*rspdl.Proof
+	sRanCTGammaProofSessionIds [num]rspdl.SessionId
+	AKGamma                    curves.Point
+	BKGamma                    curves.Point
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
@@ -519,6 +524,46 @@ func (scheme *Scheme[A, B]) DSPhase1() error {
 		scheme.rx, err = scheme.curve.Scalar.SetBigInt(new(big.Int).SetBytes(RAffine[1 : 1+(len(RAffine)>>1)]))
 		if err != nil {
 			return fmt.Errorf("failed when computing x-coordinate of R")
+		}
+	}
+
+	return nil
+}
+
+func (scheme *Scheme[A, B]) DSPhase2() error {
+	// re-randomize the ciphertext of gamma
+	for i := 1; i <= scheme.n; i++ {
+		sRanCTGammaProof, sRanCTGammaSessionId, err := ds.SRanCTGammaProve(scheme.curve, scheme.T, scheme.UGamma, scheme.VGamma, scheme.kProofs[i-1].Statement, scheme.ks[i-1])
+		if err != nil {
+			return err
+		}
+		scheme.sRanCTGammaProofs[i-1] = sRanCTGammaProof
+		scheme.sRanCTGammaProofSessionIds[i-1] = sRanCTGammaSessionId
+	}
+
+	// verify the re-randomization to the ciphertext of gamma
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		for i := 1; i <= scheme.n; i++ {
+			err := ds.SRanCTGammaVerify(scheme.curve, scheme.T, scheme.sRanCTGammaProofs[i-1], scheme.UGamma, scheme.VGamma, scheme.kProofs[i-1].Statement, scheme.sRanCTGammaProofSessionIds[i-1])
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// compute the ciphertext of k*gamma
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		scheme.AKGamma = scheme.sRanCTGammaProofs[0].APrime
+		scheme.BKGamma = scheme.sRanCTGammaProofs[0].BPrime
+		for i := 2; i <= scheme.n; i++ {
+			scheme.AKGamma = scheme.AKGamma.Add(scheme.sRanCTGammaProofs[i-1].APrime)
+			scheme.BKGamma = scheme.BKGamma.Add(scheme.sRanCTGammaProofs[i-1].BPrime)
 		}
 	}
 
