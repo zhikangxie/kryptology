@@ -14,7 +14,7 @@ func BenchmarkDKG(b *testing.B) {
 
 	nInit := num
 
-	str := "test message"
+	str := "test message test message test message test message test message test message test message test message test message test message "
 	messageInit := []byte(str)
 
 	var sksInit [num]curves.Scalar
@@ -56,7 +56,7 @@ func BenchmarkDS(b *testing.B) {
 
 	nInit := num
 
-	str := "test message"
+	str := "test message test message test message test message test message test message test message test message test message test message "
 	messageInit := []byte(str)
 
 	var sksInit [num]curves.Scalar

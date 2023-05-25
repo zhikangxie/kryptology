@@ -9,7 +9,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
 )
 
-const num = 10
+const num = 50
 
 type Scheme struct {
 	curve *curves.Curve
@@ -75,6 +75,9 @@ func (scheme *Scheme) DKGStep2() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.PkDeComVerify(scheme.curve, scheme.pkProofs[id-1], scheme.pkCommitments[id-1], scheme.pkProofSessionIds[id-1])
 			if err != nil {
 				return err
@@ -113,6 +116,9 @@ func (scheme *Scheme) DKGStep3B() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 2; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			if id == 2 {
 				err := dkg.JointPkVerify(scheme.curve, scheme.pkProofs[id-2].Statement, scheme.jointPkProofs[id-1], scheme.jointPkProofSessionIds[id-1])
 				if err != nil {
@@ -160,6 +166,9 @@ func (scheme *Scheme) DSStep2A() error {
 	var basePoint curves.Point
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			if id == 1 {
 				basePoint = scheme.curve.NewGeneratorPoint()
 			} else if id == 2 {
