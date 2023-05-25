@@ -165,6 +165,9 @@ func (scheme *Scheme[A, B]) DKGPhase1() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.PkDeComVerify(scheme.curve, scheme.QProofs[id-1], scheme.QCommitments[id-1], scheme.QProofSessionIds[id-1])
 			if err != nil {
 				return err
@@ -201,6 +204,9 @@ func (scheme *Scheme[A, B]) DKGPhase1() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.PkDeComVerify(scheme.curve, scheme.TProofs[id-1], scheme.TCommitments[id-1], scheme.TProofSessionIds[id-1])
 			if err != nil {
 				return err
@@ -240,6 +246,9 @@ func (scheme *Scheme[A, B]) DKGPhase2() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.REGVerify(scheme.curve, scheme.T, scheme.gammaRegProofs[id-1], scheme.gammaRegProofSessionIds[id-1])
 			if err != nil {
 				return err
@@ -276,6 +285,9 @@ func (scheme *Scheme[A, B]) DKGPhase2() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.RSPDLVerify(scheme.curve, scheme.T, scheme.xGammaRspdlProofs[id-1], scheme.UGamma, scheme.VGamma, scheme.QProofs[id-1].Statement, scheme.xGammaRspdlProofSessionIds[id-1])
 			if err != nil {
 				return err
@@ -344,6 +356,9 @@ func (scheme *Scheme[A, B]) DKGPhase3() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for i := 1; i <= scheme.n; i++ {
+			if i == numParty {
+				continue
+			}
 			err := dkg.SigmaREGVerify(scheme.curve, scheme.T, scheme.sigmaRegProofs[i-1], scheme.sigmaRegProofSessionIds[i-1])
 			if err != nil {
 				return err
@@ -398,6 +413,9 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.RREDeComVerify(scheme.curve, scheme.rreProofs[id-1], scheme.rreCommitments[id-1], scheme.rreProofSessionIds[id-1], scheme.T, scheme.U, scheme.V)
 			if err != nil {
 				return err
@@ -440,6 +458,9 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.DDHDeComVerify(scheme.curve, scheme.ddhProofs[id-1], scheme.ddhCommitments[id-1], scheme.ddhProofSessionIds[id-1], nil, scheme.UPrime)
 			if err != nil {
 				return err
@@ -482,6 +503,9 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			err := dkg.SigmaDDHVerify(scheme.curve, scheme.sigmaDDHProofs[id-1], scheme.sigmaDDHProofSessionIds[id-1], scheme.P, scheme.T)
 			if err != nil {
 				return err
@@ -495,6 +519,9 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 	****************************************/
 	for numParty := 1; numParty <= scheme.n; numParty++ {
 		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
 			if !scheme.P.Mul(scheme.sigmas[id-1]).Equal(scheme.sigmaRegProofs[id-1].B.Sub(scheme.sigmaDDHProofs[id-1].Statement2)) {
 				return fmt.Errorf("failed when verifying the validation of sigma")
 			}
@@ -534,6 +561,9 @@ func (scheme *Scheme[A, B]) DSPhase1() error {
 	****************************************/
 	for party := 1; party <= scheme.n; party++ {
 		for i := 1; i <= scheme.n; i++ {
+			if i == party {
+				continue
+			}
 			err := ds.NonceDeComVerify(scheme.curve, scheme.kProofs[i-1], scheme.kCommitments[i-1], scheme.kProofSessionIds[i-1])
 			if err != nil {
 				return err
@@ -578,6 +608,9 @@ func (scheme *Scheme[A, B]) DSPhase2() error {
 	****************************************/
 	for party := 1; party <= scheme.n; party++ {
 		for i := 1; i <= scheme.n; i++ {
+			if i == party {
+				continue
+			}
 			err := ds.SRanCTGammaVerify(scheme.curve, scheme.T, scheme.sRanCTGammaProofs[i-1], scheme.UGamma, scheme.VGamma, scheme.kProofs[i-1].Statement, scheme.sRanCTGammaProofSessionIds[i-1])
 			if err != nil {
 				return err
@@ -642,6 +675,9 @@ func (scheme *Scheme[A, B]) DSPhase3() error {
 	****************************************/
 	for party := 1; party <= scheme.n; party++ {
 		for i := 1; i <= scheme.n; i++ {
+			if i == party {
+				continue
+			}
 			err := ds.DeltaEGVerify(scheme.curve, scheme.T, scheme.deltaEGProofs[i-1], scheme.deltaEGProofSessionIds[i-1])
 			if err != nil {
 				return err
@@ -696,6 +732,9 @@ func (scheme *Scheme[A, B]) DSPhase4() error {
 	****************************************/
 	for party := 1; party <= scheme.n; party++ {
 		for i := 1; i <= scheme.n; i++ {
+			if i == party {
+				continue
+			}
 			err := ds.REDeComVerify(scheme.curve, scheme.abREProofs[i-1], scheme.abRECommitments[i-1], scheme.abREProofSessionIds[i-1], scheme.T, scheme.A, scheme.B)
 			if err != nil {
 				return err
@@ -738,6 +777,9 @@ func (scheme *Scheme[A, B]) DSPhase4() error {
 	****************************************/
 	for party := 1; party <= scheme.n; party++ {
 		for i := 1; i <= scheme.n; i++ {
+			if i == party {
+				continue
+			}
 			err := ds.DDHDeComVerify(scheme.curve, scheme.abDDHProofs[i-1], scheme.abDDHCommitments[i-1], scheme.abDDHProofSessionIds[i-1], nil, scheme.APrime)
 			if err != nil {
 				return err
