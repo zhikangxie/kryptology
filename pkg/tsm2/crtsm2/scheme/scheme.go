@@ -84,6 +84,8 @@ type Scheme[A any, B any] struct {
 	VSigmaPrimes            [num]curves.Point
 	sigmaDDHProofs          [num]*chaumpedersen.Proof
 	sigmaDDHProofSessionIds [num]chaumpedersen.SessionId
+
+	sigma curves.Scalar
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
@@ -446,6 +448,17 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 			if !scheme.P.Mul(scheme.sigmas[id-1]).Equal(scheme.sigmaRegProofs[id-1].B.Sub(scheme.sigmaDDHProofs[id-1].Statement2)) {
 				return fmt.Errorf("failed when verifying the validation of sigma")
 			}
+		}
+	}
+
+	// compute sigma
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		scheme.sigma = scheme.sigmas[0]
+		for id := 2; id <= scheme.n; id++ {
+			scheme.sigma = scheme.sigma.Add(scheme.sigmas[id-1])
 		}
 	}
 
