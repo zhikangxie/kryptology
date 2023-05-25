@@ -5,7 +5,9 @@ import (
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/ot/base/simplest"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/sign_offline"
+	"github.com/coinbase/kryptology/pkg/zkp/chaumpedersen"
 	"github.com/coinbase/kryptology/pkg/zkp/reg"
+	"github.com/coinbase/kryptology/pkg/zkp/rre"
 	"github.com/coinbase/kryptology/pkg/zkp/rspdl"
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
 )
@@ -78,4 +80,54 @@ func DeltaEGProve(curve *curves.Curve, T curves.Point, delta curves.Scalar) (*re
 
 func DeltaEGVerify(curve *curves.Curve, T curves.Point, deltaEGProof *reg.Proof, deltaEGProofSessionId reg.SessionId) error {
 	return reg.Verify(deltaEGProof, curve, nil, T, deltaEGProofSessionId)
+}
+
+// functions for phase 4
+
+func REComProve(curve *curves.Curve, T curves.Point, U curves.Point, V curves.Point) (*rre.Proof, rre.Commitment, rre.SessionId, error) {
+	uniqueSessionId := [simplest.DigestSize]byte{}
+	rreProofSessionId := uniqueSessionId[:]
+	rreProver, err := rre.NewProver(curve, nil, T, U, V, rreProofSessionId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	alpha := curve.Scalar.Random(rand.Reader)
+	beta := curve.Scalar.Random(rand.Reader)
+	rreProof, rreCommitment, err := rreProver.ComProve(alpha, beta)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return rreProof, rreCommitment, rreProofSessionId, nil
+}
+
+func REDeComVerify(curve *curves.Curve, rreProof *rre.Proof, rreCommitment rre.Commitment, rreProofSessionId rre.SessionId, T curves.Point, U curves.Point, V curves.Point) error {
+	return rre.DeComVerify(rreProof, rreCommitment, curve, nil, T, U, V, rreProofSessionId)
+}
+
+func DDHComProve(curve *curves.Curve, P curves.Point, UPrime curves.Point, Ti curves.Point, UiPrime curves.Point, di curves.Scalar) (*chaumpedersen.Proof, chaumpedersen.Commitment, chaumpedersen.SessionId, error) {
+	if P == nil {
+		P = curve.NewGeneratorPoint()
+	}
+	uniqueSessionId := [simplest.DigestSize]byte{}
+	ddhProofSessionId := uniqueSessionId[:]
+	ddhProver, err := chaumpedersen.NewProver(curve, P, UPrime, ddhProofSessionId)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	ddhProof, ddhCommitment, err := ddhProver.ComProveWithStatement(Ti, UiPrime, di)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return ddhProof, ddhCommitment, ddhProofSessionId, nil
+}
+
+func DDHDeComVerify(curve *curves.Curve, ddhProof *chaumpedersen.Proof, ddhCommitment chaumpedersen.Commitment, ddhProofSessionId chaumpedersen.SessionId, P curves.Point, UPrime curves.Point) error {
+	if P == nil {
+		P = curve.NewGeneratorPoint()
+	}
+	return chaumpedersen.DeComVerify(ddhProof, ddhCommitment, curve, P, UPrime, ddhProofSessionId)
 }

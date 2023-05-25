@@ -115,6 +115,22 @@ type Scheme[A any, B any] struct {
 
 	ADelta curves.Point
 	BDelta curves.Point
+
+	A curves.Point
+	B curves.Point
+
+	abREProofs          [num]*rre.Proof
+	abRECommitments     [num]rre.Commitment
+	abREProofSessionIds [num]rre.SessionId
+
+	abDDHProofs          [num]*chaumpedersen.Proof
+	abDDHCommitments     [num]chaumpedersen.Commitment
+	abDDHProofSessionIds [num]chaumpedersen.SessionId
+
+	APrime curves.Point
+	BPrime curves.Point
+
+	APrimes [num]curves.Point
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
@@ -640,6 +656,107 @@ func (scheme *Scheme[A, B]) DSPhase3() error {
 			scheme.BDelta = scheme.BDelta.Add(scheme.deltaEGProofs[i-1].B)
 		}
 	}
+
+	return nil
+}
+
+func (scheme *Scheme[A, B]) DSPhase4() error {
+	// compute A and B
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		scheme.A = scheme.AKGamma.Sub(scheme.ADelta)
+		scheme.B = scheme.BKGamma.Sub(scheme.BDelta)
+	}
+
+	/*
+		START OF DDH CHECK
+	*/
+
+	// re-randomize, generate proof and commitment
+	for i := 1; i <= scheme.n; i++ {
+		reProof, reCommitment, reProofSessionId, err := ds.REComProve(scheme.curve, scheme.T, scheme.A, scheme.B)
+		if err != nil {
+			return err
+		}
+		scheme.abREProofs[i-1] = reProof
+		scheme.abRECommitments[i-1] = reCommitment
+		scheme.abREProofSessionIds[i-1] = reProofSessionId
+	}
+
+	// de-com, verify proof of re-randomization
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		for i := 1; i <= scheme.n; i++ {
+			err := ds.REDeComVerify(scheme.curve, scheme.abREProofs[i-1], scheme.abRECommitments[i-1], scheme.abREProofSessionIds[i-1], scheme.T, scheme.A, scheme.B)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// compute A', B'
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		scheme.APrime = scheme.abREProofs[0].APrime
+		scheme.BPrime = scheme.abREProofs[0].BPrime
+		for i := 2; i <= scheme.n; i++ {
+			scheme.APrime = scheme.APrime.Add(scheme.abREProofs[i-1].APrime)
+			scheme.BPrime = scheme.BPrime.Add(scheme.abREProofs[i-1].BPrime)
+		}
+	}
+
+	// compute A'_i
+	for i := 1; i <= scheme.n; i++ {
+		scheme.APrimes[i-1] = scheme.APrime.Mul(scheme.ds[i-1])
+	}
+
+	// generate DDH proof and commitment
+	for i := 1; i <= scheme.n; i++ {
+		ddhProof, ddhCommitment, ddhProofSessionId, err := ds.DDHComProve(scheme.curve, nil, scheme.APrime, scheme.TProofs[i-1].Statement, scheme.APrimes[i-1], scheme.ds[i-1])
+		if err != nil {
+			return err
+		}
+		scheme.abDDHProofs[i-1] = ddhProof
+		scheme.abDDHCommitments[i-1] = ddhCommitment
+		scheme.abDDHProofSessionIds[i-1] = ddhProofSessionId
+	}
+
+	// de-com, verify proof of DDH
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		for i := 1; i <= scheme.n; i++ {
+			err := ds.DDHDeComVerify(scheme.curve, scheme.abDDHProofs[i-1], scheme.abDDHCommitments[i-1], scheme.abDDHProofSessionIds[i-1], nil, scheme.APrime)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// compute sum of A'_i and compare it with B'
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		sumAPrimes := scheme.APrimes[0]
+		for i := 2; i <= scheme.n; i++ {
+			sumAPrimes = sumAPrimes.Add(scheme.APrimes[i-1])
+		}
+		if !sumAPrimes.Equal(scheme.BPrime) {
+			return fmt.Errorf("failed when verifying DDH relation")
+		}
+	}
+
+	/*
+		END OF DDH CHECK
+	*/
 
 	return nil
 }
