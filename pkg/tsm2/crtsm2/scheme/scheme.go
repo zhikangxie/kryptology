@@ -105,6 +105,16 @@ type Scheme[A any, B any] struct {
 	sRanCTGammaProofSessionIds [num]rspdl.SessionId
 	AKGamma                    curves.Point
 	BKGamma                    curves.Point
+
+	mus    [num][num]curves.Scalar
+	nus    [num][num]curves.Scalar
+	deltas [num]curves.Scalar
+
+	deltaEGProofs          [num]*reg.Proof
+	deltaEGProofSessionIds [num]reg.SessionId
+
+	ADelta curves.Point
+	BDelta curves.Point
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
@@ -564,6 +574,70 @@ func (scheme *Scheme[A, B]) DSPhase2() error {
 		for i := 2; i <= scheme.n; i++ {
 			scheme.AKGamma = scheme.AKGamma.Add(scheme.sRanCTGammaProofs[i-1].APrime)
 			scheme.BKGamma = scheme.BKGamma.Add(scheme.sRanCTGammaProofs[i-1].BPrime)
+		}
+	}
+
+	return nil
+}
+
+func (scheme *Scheme[A, B]) DSPhase3() error {
+	// invoke MtA
+	for i := 1; i <= scheme.n; i++ {
+		for j := 1; j <= scheme.n; j++ {
+			if i == j {
+				continue
+			}
+			mu, nu := ds.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.ks[j-1], scheme.mtaSenders[i-1][j-1], scheme.mtaReceivers[i-1][j-1])
+			scheme.mus[i-1][j-1] = mu
+			scheme.nus[j-1][i-1] = nu
+		}
+	}
+
+	// compute delta_i
+	for i := 1; i <= scheme.n; i++ {
+		delta_i := scheme.gammas[i-1].Mul(scheme.ks[i-1])
+		for j := 1; j <= scheme.n; j++ {
+			if i == j {
+				continue
+			}
+			delta_i = delta_i.Add(scheme.mus[i-1][j-1].Add(scheme.nus[i-1][j-1]))
+		}
+		scheme.deltas[i-1] = delta_i
+	}
+
+	// encrypt delta_i and generate proof
+	for i := 1; i <= scheme.n; i++ {
+		deltaEGProof, deltaEGProofSessionId, err := ds.DeltaEGProve(scheme.curve, scheme.T, scheme.deltas[i-1])
+		if err != nil {
+			return err
+		}
+		scheme.deltaEGProofs[i-1] = deltaEGProof
+		scheme.deltaEGProofSessionIds[i-1] = deltaEGProofSessionId
+	}
+
+	// verify proof of delta_i's encryption
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		for i := 1; i <= scheme.n; i++ {
+			err := ds.DeltaEGVerify(scheme.curve, scheme.T, scheme.deltaEGProofs[i-1], scheme.deltaEGProofSessionIds[i-1])
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// compute the encryption of sum(delta_i)
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		scheme.ADelta = scheme.deltaEGProofs[0].A
+		scheme.BDelta = scheme.deltaEGProofs[0].B
+		for i := 2; i <= scheme.n; i++ {
+			scheme.ADelta = scheme.ADelta.Add(scheme.deltaEGProofs[i-1].A)
+			scheme.BDelta = scheme.BDelta.Add(scheme.deltaEGProofs[i-1].B)
 		}
 	}
 
