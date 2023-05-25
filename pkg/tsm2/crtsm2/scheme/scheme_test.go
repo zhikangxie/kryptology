@@ -387,26 +387,26 @@ func BenchmarkDKGPaillier(b *testing.B) {
 	str := "test message test message test message test message test message test message test message test message test message test message "
 	scheme.message = []byte(str)
 
+	var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var sender = mta_paillier.NewSender(scheme.curve, p, q)
+	var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
+	for i := 1; i <= scheme.n; i++ {
+		for j := i + 1; j <= scheme.n; j++ {
+			scheme.mtaSenders[i-1][j-1] = sender
+			scheme.mtaReceivers[i-1][j-1] = receiver
+			b.Logf("MtA between party %d and party %d initiated", i, j)
+		}
+	}
+
 	b.ResetTimer()
 
 	for k := 0; k < b.N; k++ {
-		for i := 1; i <= scheme.n; i++ {
-			for j := i + 1; j <= scheme.n; j++ {
-				var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-				var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-				var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-				var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-				var sender = mta_paillier.NewSender(scheme.curve, p, q)
-				var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
-				setup1Statement, setup1Proof := receiver.SetupInit()
-				setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
-				receiver.SetupDone(setup2Statement, setup2Proof)
-				scheme.mtaSenders[i-1][j-1] = sender
-				scheme.mtaReceivers[i-1][j-1] = receiver
-				b.Logf("MtA between party %d and party %d initiated", i, j)
-			}
-		}
-
 		err := scheme.DKGPhase1()
 		require.NoError(b, err, "failed in Phase 1 of DKG")
 
@@ -427,19 +427,17 @@ func BenchmarkDSPaillier(b *testing.B) {
 	str := "test message test message test message test message test message test message test message test message test message test message "
 	scheme.message = []byte(str)
 
-	b.ResetTimer()
-
+	var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var sender = mta_paillier.NewSender(scheme.curve, p, q)
+	var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
 	for i := 1; i <= scheme.n; i++ {
 		for j := i + 1; j <= scheme.n; j++ {
-			var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-			var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-			var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-			var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
-			var sender = mta_paillier.NewSender(scheme.curve, p, q)
-			var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
-			setup1Statement, setup1Proof := receiver.SetupInit()
-			setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
-			receiver.SetupDone(setup2Statement, setup2Proof)
 			scheme.mtaSenders[i-1][j-1] = sender
 			scheme.mtaReceivers[i-1][j-1] = receiver
 			b.Logf("MtA between party %d and party %d initiated", i, j)
