@@ -326,3 +326,57 @@ func TestScheme_DSPhase4(t *testing.T) {
 	err = scheme.DSPhase4()
 	require.NoError(t, err, "failed in Phase 4 of DS")
 }
+
+func TestScheme_DSPhase5(t *testing.T) {
+	curveInit := curves.K256()
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
+	str := "test message"
+	scheme.message = []byte(str)
+	var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	t.Log("safe primes generated")
+	for i := 1; i <= scheme.n; i++ {
+		for j := 1; j <= scheme.n; j++ {
+			if i == j {
+				continue
+			}
+			var sender = mta_paillier.NewSender(scheme.curve, p, q)
+			var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
+			setup1Statement, setup1Proof := receiver.SetupInit()
+			setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+			receiver.SetupDone(setup2Statement, setup2Proof)
+			scheme.mtaSenders[i-1][j-1] = sender
+			scheme.mtaReceivers[i-1][j-1] = receiver
+			t.Logf("MtA between party %d and party %d initiated", i, j)
+		}
+	}
+
+	err := scheme.DKGPhase1()
+	require.NoError(t, err, "failed in Phase 1 of DKG")
+
+	err = scheme.DKGPhase2()
+	require.NoError(t, err, "failed in Phase 2 of DKG")
+
+	err = scheme.DKGPhase3()
+	require.NoError(t, err, "failed in Phase 3 of DKG")
+
+	err = scheme.DKGPhase4()
+	require.NoError(t, err, "failed in Phase 4 of DKG")
+
+	err = scheme.DSPhase1()
+	require.NoError(t, err, "failed in Phase 1 of DS")
+
+	err = scheme.DSPhase2()
+	require.NoError(t, err, "failed in Phase 2 of DS")
+
+	err = scheme.DSPhase3()
+	require.NoError(t, err, "failed in Phase 3 of DS")
+
+	err = scheme.DSPhase4()
+	require.NoError(t, err, "failed in Phase 4 of DS")
+
+	err = scheme.DSPhase5()
+	require.NoError(t, err, "failed in Phase 4 of DS")
+}

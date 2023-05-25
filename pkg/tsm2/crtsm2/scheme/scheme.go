@@ -6,6 +6,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/sign_offline"
 	"github.com/coinbase/kryptology/pkg/tsm2/crtsm2/dkg"
 	"github.com/coinbase/kryptology/pkg/tsm2/crtsm2/ds"
+	"github.com/coinbase/kryptology/pkg/tsm2/crtsm2/verify"
 	"github.com/coinbase/kryptology/pkg/zkp/chaumpedersen"
 	"github.com/coinbase/kryptology/pkg/zkp/reg"
 	"github.com/coinbase/kryptology/pkg/zkp/rre"
@@ -131,6 +132,10 @@ type Scheme[A any, B any] struct {
 	BPrime curves.Point
 
 	APrimes [num]curves.Point
+
+	r  curves.Scalar
+	ss [num]curves.Scalar
+	s  curves.Scalar
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
@@ -757,6 +762,50 @@ func (scheme *Scheme[A, B]) DSPhase4() error {
 	/*
 		END OF DDH CHECK
 	*/
+
+	return nil
+}
+
+func (scheme *Scheme[A, B]) DSPhase5() error {
+	// compute r
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		h := scheme.curve.Scalar.Hash(scheme.message)
+		scheme.r = scheme.rx.Add(h)
+	}
+
+	// compute s_i
+	for i := 1; i <= scheme.n; i++ {
+		sigmaInvert, err := scheme.sigma.Invert()
+		if err != nil {
+			return fmt.Errorf("failed in computing the inverse of sigma")
+		}
+		scheme.ss[i-1] = sigmaInvert.Mul(scheme.gammas[i-1].Mul(scheme.r).Add(scheme.deltas[i-1]))
+	}
+
+	// compute s
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		scheme.s = scheme.ss[0]
+		for i := 2; i <= scheme.n; i++ {
+			scheme.s = scheme.s.Add(scheme.ss[i-1])
+		}
+	}
+
+	// verify the final signature
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		err := verify.Verify(scheme.curve, nil, scheme.Q, scheme.message, scheme.r, scheme.s)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
