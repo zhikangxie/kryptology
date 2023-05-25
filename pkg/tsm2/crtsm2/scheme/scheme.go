@@ -318,7 +318,12 @@ func (scheme *Scheme[A, B]) DKGPhase3() error {
 			if i == j {
 				continue
 			}
-			alpha, beta := dkg.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.xs[j-1], scheme.mtaSenders[i-1][j-1], scheme.mtaReceivers[i-1][j-1])
+			var alpha, beta curves.Scalar
+			if i < j {
+				alpha, beta = dkg.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.xs[j-1], scheme.mtaSenders[i-1][j-1], scheme.mtaReceivers[i-1][j-1])
+			} else {
+				alpha, beta = dkg.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.xs[j-1], scheme.mtaSenders[j-1][i-1], scheme.mtaReceivers[j-1][i-1])
+			}
 			scheme.alphas[i-1][j-1] = alpha
 			scheme.betas[j-1][i-1] = beta
 			if alpha.Add(beta).Cmp(scheme.gammas[i-1].Mul(scheme.xs[j-1])) != 0 {
@@ -641,7 +646,12 @@ func (scheme *Scheme[A, B]) DSPhase3() error {
 			if i == j {
 				continue
 			}
-			mu, nu := ds.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.ks[j-1], scheme.mtaSenders[i-1][j-1], scheme.mtaReceivers[i-1][j-1])
+			var mu, nu curves.Scalar
+			if i < j {
+				mu, nu = ds.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.ks[j-1], scheme.mtaSenders[i-1][j-1], scheme.mtaReceivers[i-1][j-1])
+			} else {
+				mu, nu = ds.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.ks[j-1], scheme.mtaSenders[j-1][i-1], scheme.mtaReceivers[j-1][i-1])
+			}
 			scheme.mus[i-1][j-1] = mu
 			scheme.nus[j-1][i-1] = nu
 		}
