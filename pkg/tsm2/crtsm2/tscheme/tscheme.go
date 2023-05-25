@@ -318,7 +318,9 @@ func (scheme *Scheme[A, B]) DKGPhase3() error {
 			if i == j {
 				continue
 			}
-			alpha, beta := dkg.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.xs[j-1], scheme.mtaSender, scheme.mtaReceiver)
+			a := scheme.mtaReceiver.Init(scheme.xs[j-1])
+			alpha, b := scheme.mtaSender.Update(scheme.gammas[i-1], a)
+			beta := scheme.mtaReceiver.Multiply(b)
 			scheme.alphas[i-1][j-1] = alpha
 			scheme.betas[j-1][i-1] = beta
 			if alpha.Add(beta).Cmp(scheme.gammas[i-1].Mul(scheme.xs[j-1])) != 0 {
@@ -641,7 +643,9 @@ func (scheme *Scheme[A, B]) DSPhase3() error {
 			if i == j {
 				continue
 			}
-			mu, nu := ds.MtASimu(scheme.curve, scheme.gammas[i-1], scheme.ks[j-1], scheme.mtaSender, scheme.mtaReceiver)
+			a := scheme.mtaReceiver.Init(scheme.ks[j-1])
+			mu, b := scheme.mtaSender.Update(scheme.gammas[i-1], a)
+			nu := scheme.mtaReceiver.Multiply(b)
 			scheme.mus[i-1][j-1] = mu
 			scheme.nus[j-1][i-1] = nu
 		}
