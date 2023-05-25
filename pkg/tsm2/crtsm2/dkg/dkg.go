@@ -82,20 +82,20 @@ func MtASimu[A any, B any](curve *curves.Curve, gamma curves.Scalar, x curves.Sc
 	return alpha, beta
 }
 
-func SigmaREGProve(curve *curves.Curve, T curves.Point, sigma curves.Scalar) (*reg.Proof, reg.SessionId, error) {
+func SigmaREGProve(curve *curves.Curve, T curves.Point, sigma curves.Scalar) (curves.Scalar, *reg.Proof, reg.SessionId, error) {
 	uniqueSessionId := [simplest.DigestSize]byte{}
 	sigmaRegProofSessionId := uniqueSessionId[:]
 	sigmaRegProver, err := reg.NewProver(curve, nil, T, sigmaRegProofSessionId)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	rsigma := curve.Scalar.Random(rand.Reader)
 	sigmaRegProof, err := sigmaRegProver.Prove(sigma, rsigma)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return sigmaRegProof, sigmaRegProofSessionId, nil
+	return rsigma, sigmaRegProof, sigmaRegProofSessionId, nil
 }
 
 func SigmaREGVerify(curve *curves.Curve, T curves.Point, sigmaRegProof *reg.Proof, sigmaRegProofSessionId reg.SessionId) error {
@@ -150,4 +150,30 @@ func DDHDeComVerify(curve *curves.Curve, ddhProof *chaumpedersen.Proof, ddhCommi
 		P = curve.NewGeneratorPoint()
 	}
 	return chaumpedersen.DeComVerify(ddhProof, ddhCommitment, curve, P, UPrime, ddhProofSessionId)
+}
+
+func SigmaDDHProve(curve *curves.Curve, P curves.Point, T curves.Point, USigma curves.Point, VSigmaPrime curves.Point, rSigma curves.Scalar) (*chaumpedersen.Proof, chaumpedersen.SessionId, error) {
+	if P == nil {
+		P = curve.NewGeneratorPoint()
+	}
+	uniqueSessionId := [simplest.DigestSize]byte{}
+	ddhProofSessionId := uniqueSessionId[:]
+	ddhProver, err := chaumpedersen.NewProver(curve, P, T, ddhProofSessionId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	ddhProof, err := ddhProver.ProveWithStatement(USigma, VSigmaPrime, rSigma)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return ddhProof, ddhProofSessionId, nil
+}
+
+func SigmaDDHVerify(curve *curves.Curve, ddhProof *chaumpedersen.Proof, ddhProofSessionId chaumpedersen.SessionId, P curves.Point, T curves.Point) error {
+	if P == nil {
+		P = curve.NewGeneratorPoint()
+	}
+	return chaumpedersen.Verify(ddhProof, curve, P, T, ddhProofSessionId)
 }

@@ -60,6 +60,7 @@ type Scheme[A any, B any] struct {
 	mtaReceivers [num][num]sign_offline.MTAReceiver[A, B]
 
 	sigmas                  [num]curves.Scalar
+	rSigmas                 [num]curves.Scalar
 	sigmaRegProofs          [num]*reg.Proof
 	sigmaRegProofSessionIds [num]reg.SessionId
 	USigma                  curves.Point
@@ -79,6 +80,10 @@ type Scheme[A any, B any] struct {
 	ddhProofs          [num]*chaumpedersen.Proof
 	ddhCommitments     [num]chaumpedersen.Commitment
 	ddhProofSessionIds [num]chaumpedersen.SessionId
+
+	VSigmaPrimes            [num]curves.Point
+	sigmaDDHProofs          [num]*chaumpedersen.Proof
+	sigmaDDHProofSessionIds [num]chaumpedersen.SessionId
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
@@ -272,10 +277,11 @@ func (scheme *Scheme[A, B]) DKGPhase3() error {
 
 	// encrypt sigma and generate proof
 	for i := 1; i <= scheme.n; i++ {
-		sigmaRegProof, sigmaRegProofSessionId, err := dkg.SigmaREGProve(scheme.curve, scheme.T, scheme.sigmas[i-1])
+		rSigma, sigmaRegProof, sigmaRegProofSessionId, err := dkg.SigmaREGProve(scheme.curve, scheme.T, scheme.sigmas[i-1])
 		if err != nil {
 			return err
 		}
+		scheme.rSigmas[i-1] = rSigma
 		scheme.sigmaRegProofs[i-1] = sigmaRegProof
 		scheme.sigmaRegProofSessionIds[i-1] = sigmaRegProofSessionId
 	}
@@ -318,6 +324,10 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 		scheme.U = scheme.UXGamma.Sub(scheme.USigma)
 		scheme.V = scheme.VXGamma.Sub(scheme.VSigma)
 	}
+
+	/*
+		START OF DDH CHECK
+	*/
 
 	// re-randomize, generate proof and commitment
 	for id := 1; id <= scheme.n; id++ {
@@ -396,6 +406,46 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 		}
 		if !sumUiPrime.Equal(scheme.VPrime) {
 			return fmt.Errorf("failed when verifying sum of U'_i")
+		}
+	}
+
+	/*
+		END OF DDH CHECK
+	*/
+
+	// compute VSigmaPrimes and DDH proofs
+	for id := 1; id <= scheme.n; id++ {
+		scheme.VSigmaPrimes[id-1] = scheme.sigmaRegProofs[id-1].B.Sub(scheme.P.Mul(scheme.sigmas[id-1]))
+		sigmaDDHProof, sigmaDDHProofSessionId, err := dkg.SigmaDDHProve(scheme.curve, scheme.P, scheme.T, scheme.sigmaRegProofs[id-1].A, scheme.VSigmaPrimes[id-1], scheme.rSigmas[id-1])
+		if err != nil {
+			return err
+		}
+		scheme.sigmaDDHProofs[id-1] = sigmaDDHProof
+		scheme.sigmaDDHProofSessionIds[id-1] = sigmaDDHProofSessionId
+	}
+
+	// verify DDH proofs
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		for id := 1; id <= scheme.n; id++ {
+			err := dkg.SigmaDDHVerify(scheme.curve, scheme.sigmaDDHProofs[id-1], scheme.sigmaDDHProofSessionIds[id-1], scheme.P, scheme.T)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// verify sigmas
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		for id := 1; id <= scheme.n; id++ {
+			if !scheme.P.Mul(scheme.sigmas[id-1]).Equal(scheme.sigmaRegProofs[id-1].B.Sub(scheme.sigmaDDHProofs[id-1].Statement2)) {
+				return fmt.Errorf("failed when verifying the validation of sigma")
+			}
 		}
 	}
 
