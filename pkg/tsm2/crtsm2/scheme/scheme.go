@@ -5,11 +5,13 @@ import (
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/tecdsa/2ecdsa/sign_offline"
 	"github.com/coinbase/kryptology/pkg/tsm2/crtsm2/dkg"
+	"github.com/coinbase/kryptology/pkg/tsm2/crtsm2/ds"
 	"github.com/coinbase/kryptology/pkg/zkp/chaumpedersen"
 	"github.com/coinbase/kryptology/pkg/zkp/reg"
 	"github.com/coinbase/kryptology/pkg/zkp/rre"
 	"github.com/coinbase/kryptology/pkg/zkp/rspdl"
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
+	"math/big"
 )
 
 const num = 3
@@ -86,6 +88,18 @@ type Scheme[A any, B any] struct {
 	sigmaDDHProofSessionIds [num]chaumpedersen.SessionId
 
 	sigma curves.Scalar
+
+	/*
+		structures for signing
+	*/
+
+	ks               [num]curves.Scalar
+	kProofs          [num]*schnorr.Proof
+	kCommitments     [num]schnorr.Commitment
+	kProofSessionIds [num]schnorr.Commitment
+
+	R  curves.Point
+	rx curves.Scalar
 }
 
 func NewScheme[A any, B any](curve *curves.Curve) *Scheme[A, B] {
@@ -459,6 +473,52 @@ func (scheme *Scheme[A, B]) DKGPhase4() error {
 		scheme.sigma = scheme.sigmas[0]
 		for id := 2; id <= scheme.n; id++ {
 			scheme.sigma = scheme.sigma.Add(scheme.sigmas[id-1])
+		}
+	}
+
+	return nil
+}
+
+func (scheme *Scheme[A, B]) DSPhase1() error {
+	// generate k_i, compute R_i and proof
+	for i := 1; i <= scheme.n; i++ {
+		ki, kiProof, kiCommitment, kiProofSessionId, err := ds.NonceComProve(scheme.curve)
+		if err != nil {
+			return err
+		}
+		scheme.ks[i-1] = ki
+		scheme.kProofs[i-1] = kiProof
+		scheme.kCommitments[i-1] = kiCommitment
+		scheme.kProofSessionIds[i-1] = kiProofSessionId
+	}
+
+	// verify proof of k_i
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		for i := 1; i <= scheme.n; i++ {
+			err := ds.NonceDeComVerify(scheme.curve, scheme.kProofs[i-1], scheme.kCommitments[i-1], scheme.kProofSessionIds[i-1])
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// compute R and rx
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for party := 1; party <= scheme.n; party++ {
+		var err error
+		scheme.R = scheme.kProofs[0].Statement
+		for i := 2; i <= scheme.n; i++ {
+			scheme.R = scheme.R.Add(scheme.kProofs[i-1].Statement)
+		}
+		RAffine := scheme.R.ToAffineCompressed()
+		scheme.rx, err = scheme.curve.Scalar.SetBigInt(new(big.Int).SetBytes(RAffine[1 : 1+(len(RAffine)>>1)]))
+		if err != nil {
+			return fmt.Errorf("failed when computing x-coordinate of R")
 		}
 	}
 

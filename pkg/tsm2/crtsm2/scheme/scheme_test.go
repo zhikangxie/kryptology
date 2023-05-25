@@ -159,3 +159,11 @@ func TestScheme_DKGPhase4(t *testing.T) {
 	err = scheme.DKGPhase4()
 	require.NoError(t, err, "failed in Phase 4 of DKG")
 }
+
+func TestScheme_DSPhase1(t *testing.T) {
+	curveInit := curves.K256()
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
+
+	err := scheme.DSPhase1()
+	require.NoError(t, err, "failed in Phase 1 of DS")
+}
