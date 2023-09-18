@@ -63,7 +63,7 @@ type Scheme[A any, B any] struct {
 	mtaReceiver sign_offline.MTAReceiver[A, B]
 
 	sigmas                  [num]curves.Scalar
-	rSigmas                 [num]curves.Scalar
+	rDeltas                 [num]curves.Scalar
 	sigmaRegProofs          [num]*reg.Proof
 	sigmaRegProofSessionIds [num]reg.SessionId
 	USigma                  curves.Point
@@ -84,11 +84,11 @@ type Scheme[A any, B any] struct {
 	ddhCommitments     [num]chaumpedersen.Commitment
 	ddhProofSessionIds [num]chaumpedersen.SessionId
 
-	VSigmaPrimes            [num]curves.Point
-	sigmaDDHProofs          [num]*chaumpedersen.Proof
-	sigmaDDHProofSessionIds [num]chaumpedersen.SessionId
+	BDeltaPrimes            [num]curves.Point
+	deltaDDHProofs          [num]*chaumpedersen.Proof
+	deltaDDHProofSessionIds [num]chaumpedersen.SessionId
 
-	sigma curves.Scalar
+	delta curves.Scalar
 
 	/*
 		structures for signing
@@ -99,8 +99,7 @@ type Scheme[A any, B any] struct {
 	kCommitments     [num]schnorr.Commitment
 	kProofSessionIds [num]schnorr.Commitment
 
-	R  curves.Point
-	rx curves.Scalar
+	R curves.Point
 
 	sRanCTGammaProofs          [num]*rspdl.Proof
 	sRanCTGammaProofSessionIds [num]rspdl.SessionId
@@ -268,7 +267,7 @@ func (scheme *Scheme[A, B]) DSPhase1() error {
 			scheme.R = scheme.R.Add(scheme.kProofs[i-1].Statement)
 		}
 		RAffine := scheme.R.ToAffineCompressed()
-		scheme.rx, err = scheme.curve.Scalar.SetBigInt(new(big.Int).SetBytes(RAffine[1 : 1+(len(RAffine)>>1)]))
+		scheme.r, err = scheme.curve.Scalar.SetBigInt(new(big.Int).SetBytes(RAffine[1 : 1+(len(RAffine)>>1)]))
 		if err != nil {
 			return fmt.Errorf("failed when computing x-coordinate of R")
 		}
@@ -392,11 +391,10 @@ func (scheme *Scheme[A, B]) DSPhase3() error {
 
 	// encrypt sigma and generate proof
 	for i := 1; i <= scheme.n; i++ {
-		rSigma, sigmaRegProof, sigmaRegProofSessionId, err := dkg.SigmaREGProve(scheme.curve, scheme.T, scheme.sigmas[i-1])
+		sigmaRegProof, sigmaRegProofSessionId, err := ds.DeltaEGProve(scheme.curve, scheme.T, scheme.sigmas[i-1])
 		if err != nil {
 			return err
 		}
-		scheme.rSigmas[i-1] = rSigma
 		scheme.sigmaRegProofs[i-1] = sigmaRegProof
 		scheme.sigmaRegProofSessionIds[i-1] = sigmaRegProofSessionId
 	}
@@ -410,7 +408,7 @@ func (scheme *Scheme[A, B]) DSPhase3() error {
 			if i == numParty {
 				continue
 			}
-			err := dkg.SigmaREGVerify(scheme.curve, scheme.T, scheme.sigmaRegProofs[i-1], scheme.sigmaRegProofSessionIds[i-1])
+			err := ds.DeltaEGVerify(scheme.curve, scheme.T, scheme.sigmaRegProofs[i-1], scheme.sigmaRegProofSessionIds[i-1])
 			if err != nil {
 				return err
 			}
@@ -537,59 +535,6 @@ func (scheme *Scheme[A, B]) DSPhase4() error {
 		END OF DDH CHECK
 	*/
 
-	// compute VSigmaPrimes and DDH proofs
-	for id := 1; id <= scheme.n; id++ {
-		scheme.VSigmaPrimes[id-1] = scheme.sigmaRegProofs[id-1].B.Sub(scheme.P.Mul(scheme.sigmas[id-1]))
-		sigmaDDHProof, sigmaDDHProofSessionId, err := dkg.SigmaDDHProve(scheme.curve, scheme.P, scheme.T, scheme.sigmaRegProofs[id-1].A, scheme.VSigmaPrimes[id-1], scheme.rSigmas[id-1])
-		if err != nil {
-			return err
-		}
-		scheme.sigmaDDHProofs[id-1] = sigmaDDHProof
-		scheme.sigmaDDHProofSessionIds[id-1] = sigmaDDHProofSessionId
-	}
-
-	// verify DDH proofs
-	/****************************************
-	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
-	****************************************/
-	for numParty := 1; numParty <= scheme.n; numParty++ {
-		for id := 1; id <= scheme.n; id++ {
-			if id == numParty {
-				continue
-			}
-			err := dkg.SigmaDDHVerify(scheme.curve, scheme.sigmaDDHProofs[id-1], scheme.sigmaDDHProofSessionIds[id-1], scheme.P, scheme.T)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// verify sigmas
-	/****************************************
-	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
-	****************************************/
-	for numParty := 1; numParty <= scheme.n; numParty++ {
-		for id := 1; id <= scheme.n; id++ {
-			if id == numParty {
-				continue
-			}
-			if !scheme.P.Mul(scheme.sigmas[id-1]).Equal(scheme.sigmaRegProofs[id-1].B.Sub(scheme.sigmaDDHProofs[id-1].Statement2)) {
-				return fmt.Errorf("failed when verifying the validation of sigma")
-			}
-		}
-	}
-
-	// compute sigma
-	/****************************************
-	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
-	****************************************/
-	for numParty := 1; numParty <= scheme.n; numParty++ {
-		scheme.sigma = scheme.sigmas[0]
-		for id := 2; id <= scheme.n; id++ {
-			scheme.sigma = scheme.sigma.Add(scheme.sigmas[id-1])
-		}
-	}
-
 	return nil
 }
 
@@ -665,10 +610,11 @@ func (scheme *Scheme[A, B]) DSPhase6() error {
 
 	// encrypt delta_i and generate proof
 	for i := 1; i <= scheme.n; i++ {
-		deltaEGProof, deltaEGProofSessionId, err := ds.DeltaEGProve(scheme.curve, scheme.T, scheme.deltas[i-1])
+		rDelta, deltaEGProof, deltaEGProofSessionId, err := dkg.SigmaREGProve(scheme.curve, scheme.T, scheme.deltas[i-1])
 		if err != nil {
 			return err
 		}
+		scheme.rDeltas[i-1] = rDelta
 		scheme.deltaEGProofs[i-1] = deltaEGProof
 		scheme.deltaEGProofSessionIds[i-1] = deltaEGProofSessionId
 	}
@@ -809,26 +755,73 @@ func (scheme *Scheme[A, B]) DSPhase7() error {
 		END OF DDH CHECK
 	*/
 
+	// compute BDeltaPrimes and DDH proofs
+	for id := 1; id <= scheme.n; id++ {
+		scheme.BDeltaPrimes[id-1] = scheme.deltaEGProofs[id-1].B.Sub(scheme.P.Mul(scheme.deltas[id-1]))
+		deltaDDHProof, deltaDDHProofSessionId, err := dkg.SigmaDDHProve(scheme.curve, scheme.P, scheme.T, scheme.deltaEGProofs[id-1].A, scheme.BDeltaPrimes[id-1], scheme.rDeltas[id-1])
+		if err != nil {
+			return err
+		}
+		scheme.deltaDDHProofs[id-1] = deltaDDHProof
+		scheme.deltaDDHProofSessionIds[id-1] = deltaDDHProofSessionId
+	}
+
+	// verify DDH proofs
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
+			err := dkg.SigmaDDHVerify(scheme.curve, scheme.deltaDDHProofs[id-1], scheme.deltaDDHProofSessionIds[id-1], scheme.P, scheme.T)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// verify sigmas
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		for id := 1; id <= scheme.n; id++ {
+			if id == numParty {
+				continue
+			}
+			if !scheme.P.Mul(scheme.deltas[id-1]).Equal(scheme.deltaEGProofs[id-1].B.Sub(scheme.deltaDDHProofs[id-1].Statement2)) {
+				return fmt.Errorf("failed when verifying the validation of sigma")
+			}
+		}
+	}
+
+	// compute sigma
+	/****************************************
+	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
+	****************************************/
+	for numParty := 1; numParty <= scheme.n; numParty++ {
+		scheme.delta = scheme.deltas[0]
+		for id := 2; id <= scheme.n; id++ {
+			scheme.delta = scheme.delta.Add(scheme.deltas[id-1])
+		}
+	}
+
 	return nil
 }
 
 func (scheme *Scheme[A, B]) DSPhase8() error {
-	// compute r
-	/****************************************
-	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
-	****************************************/
-	for party := 1; party <= scheme.n; party++ {
-		h := scheme.curve.Scalar.Hash(scheme.message)
-		scheme.r = scheme.rx.Add(h)
-	}
-
 	// compute s_i
 	for i := 1; i <= scheme.n; i++ {
-		sigmaInvert, err := scheme.sigma.Invert()
+		deltaInvert, err := scheme.delta.Invert()
 		if err != nil {
-			return fmt.Errorf("failed in computing the inverse of sigma")
+			return fmt.Errorf("failed in computing the inverse of delta")
 		}
-		scheme.ss[i-1] = sigmaInvert.Mul(scheme.gammas[i-1].Mul(scheme.r).Add(scheme.deltas[i-1]))
+
+		h := scheme.curve.Scalar.Hash(scheme.message)
+
+		scheme.ss[i-1] = deltaInvert.Mul(h.Mul(scheme.gammas[i-1]).Add(scheme.r.Mul(scheme.sigmas[i-1])))
 	}
 
 	// compute s
@@ -847,7 +840,7 @@ func (scheme *Scheme[A, B]) DSPhase8() error {
 	EACH PARTY WILL DO THIS SIMILAR PROCEDURE
 	****************************************/
 	for party := 1; party <= scheme.n; party++ {
-		err := verify.Verify(scheme.curve, nil, scheme.Q, scheme.message, scheme.r, scheme.s)
+		err := verify.ECDSAVerify(scheme.curve, nil, scheme.Q, scheme.message, scheme.r, scheme.s)
 		if err != nil {
 			return err
 		}
