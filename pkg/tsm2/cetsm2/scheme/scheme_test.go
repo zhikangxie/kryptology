@@ -1,6 +1,7 @@
 package scheme
 
 import (
+	"crypto/rand"
 	"fmt"
 	"github.com/coinbase/kryptology/pkg/core/curves"
 	"github.com/coinbase/kryptology/pkg/zkp/chaumpedersen"
@@ -106,5 +107,18 @@ func BenchmarkDS(b *testing.B) {
 
 		err = scheme.DSStep3B(r, s)
 		require.NoError(b, err, fmt.Sprintf("failed in step 3B of DS"))
+	}
+}
+
+func BenchmarkMul(b *testing.B) {
+	curveInit := curves.K256()
+
+	P := curveInit.Point.Random(rand.Reader)
+	x := curveInit.Scalar.Random(rand.Reader)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		P.Mul(x)
 	}
 }
