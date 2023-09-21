@@ -54,3 +54,19 @@ func ECDSAVerify(curve *curves.Curve, basePoint curves.Point, pk curves.Point, m
 
 	return nil
 }
+
+func SchnorrVerify(curve *curves.Curve, basePoint curves.Point, pk curves.Point, message []byte, e curves.Scalar, s curves.Scalar) error {
+	if basePoint == nil {
+		basePoint = curve.NewGeneratorPoint()
+	}
+
+	R := basePoint.Mul(s).Add(pk.Mul(e))
+
+	h := curve.Scalar.Hash(append(append(R.ToAffineCompressed(), pk.ToAffineCompressed()...), message...))
+
+	if e.Cmp(h) != 0 {
+		return fmt.Errorf("verification failed")
+	}
+
+	return nil
+}
