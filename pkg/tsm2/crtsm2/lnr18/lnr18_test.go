@@ -9,6 +9,32 @@ import (
 	"testing"
 )
 
+func BenchmarkDKGPaillier(b *testing.B) {
+	curveInit := curves.K256()
+	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)
+	str := "test message test message test message test message test message test message test message test message test message test message "
+	scheme.message = []byte(str)
+
+	var p, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var p0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var q0, _ = core.GenerateSafePrime(paillier.PaillierPrimeBits)
+	var sender = mta_paillier.NewSender(scheme.curve, p, q)
+	var receiver = mta_paillier.NewReceiver(scheme.curve, p0, q0)
+	setup1Statement, setup1Proof := receiver.SetupInit()
+	setup2Statement, setup2Proof := sender.SetupUpdate(setup1Statement, setup1Proof)
+	receiver.SetupDone(setup2Statement, setup2Proof)
+	scheme.mtaSender = sender
+	scheme.mtaReceiver = receiver
+
+	b.ResetTimer()
+
+	for k := 0; k < b.N; k++ {
+		err := scheme.DKGPhase1()
+		require.NoError(b, err, "failed in Phase 1 of DKG")
+	}
+}
+
 func BenchmarkDSPaillier(b *testing.B) {
 	curveInit := curves.K256()
 	scheme := NewScheme[*mta_paillier.Round1Output, *mta_paillier.Round2Output](curveInit)

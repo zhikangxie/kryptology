@@ -15,7 +15,7 @@ import (
 	"math/big"
 )
 
-const num = 5
+const num = 50
 
 type MTAReceiver[A any, B any] interface {
 	Init(curves.Scalar) A
