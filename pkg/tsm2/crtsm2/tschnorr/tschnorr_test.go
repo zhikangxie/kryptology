@@ -6,6 +6,20 @@ import (
 	"testing"
 )
 
+func BenchmarkDKG(b *testing.B) {
+	curveInit := curves.K256()
+	scheme := NewScheme(curveInit)
+	str := "test message test message test message test message test message test message test message test message test message test message "
+	scheme.message = []byte(str)
+
+	b.ResetTimer()
+
+	for k := 0; k < b.N; k++ {
+		err := scheme.DKG()
+		require.NoError(b, err, "failed in DKG")
+	}
+}
+
 func BenchmarkDS(b *testing.B) {
 	curveInit := curves.K256()
 	scheme := NewScheme(curveInit)

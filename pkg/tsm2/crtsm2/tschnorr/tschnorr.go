@@ -7,7 +7,7 @@ import (
 	"github.com/coinbase/kryptology/pkg/zkp/schnorr"
 )
 
-const num = 10
+const num = 50
 
 type Scheme struct {
 	curve *curves.Curve
